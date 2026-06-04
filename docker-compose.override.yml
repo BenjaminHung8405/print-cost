@@ -1,0 +1,68 @@
+# ===== DEVELOPMENT OVERRIDE =====
+# Cách dùng: docker-compose -f docker-compose.yml -f docker-compose.override.yml up
+# (Docker tự động merge nếu file này tồn tại)
+#
+# Mục đích: Hot-reload code, verbose logs, không resource limits
+
+version: '3.9'
+
+services:
+  # Database: Thêm tools debug
+  db:
+    # Thêm environment vars debug nếu cần
+    environment:
+      POSTGRES_INITDB_ARGS: "-c log_statement=all"
+    # Cho phép kết nối từ ngoài nếu cần debug
+    ports:
+      - "5432:5432"
+
+  # Backend: Hot-reload với volume mounts
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
+    volumes:
+      # Mount source code để hot-reload
+      - ./backend/src:/app/src
+      - ./backend/package.json:/app/package.json
+      - /app/node_modules
+    # Tất bật logs chi tiết
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"  # Lớn hơn để debug
+        max-file: "5"
+    # Bỏ resource limits khi dev
+    deploy:
+      resources: {}
+    # Command dev (watch mode)
+    command: npm run dev
+
+  # Frontend: Hot-reload tương tự
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      NODE_ENV: development
+    volumes:
+      # Mount source code
+      - ./frontend/src:/app/src
+      - ./frontend/pages:/app/pages
+      - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    # Bỏ resource limits khi dev
+    deploy:
+      resources: {}
+    # Fast refresh
+    command: npm run dev
+
+  # Bỏ Nginx khi dev (không cần reverse proxy)
+  nginx:
+    profiles: ["prod"]  # Chỉ chạy khi explicitly enable

@@ -1,0 +1,55 @@
+# ===== ENVIRONMENT & SECRETS =====
+.env
+.env.local
+.env.*.local
+.env.production
+
+# ===== DEPENDENCIES =====
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+.pnpm-store/
+
+# ===== BUILD OUTPUTS =====
+.next/
+out/
+build/
+dist/
+.nuxt/
+
+# ===== IDE & EDITOR =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.env.local.backup
+
+# ===== DOCKER =====
+postgres_data/
+backups/
+*.log
+
+# ===== OS =====
+.DS_Store
+.AppleDouble
+.LSOverride
+*.pem
+*.key
+ssl/
+
+# ===== DATABASE =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== TEMPORARY FILES =====
+tmp/
+temp/
+*.tmp
+
+# ===== PROJECT SPECIFIC =====
+*.pid
+.tangram-cache/

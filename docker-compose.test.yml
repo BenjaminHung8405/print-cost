@@ -1,0 +1,36 @@
+# ==========================================
+# DOCKER COMPOSE TEST - DATABASE ONLY
+# ==========================================
+# Dùng để test schema khởi tạo mà không cần backend/frontend
+# Chạy: docker-compose -f docker-compose.test.yml up
+
+version: '3.9'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: printcost_db_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-printcost_dev_password_12345}
+      POSTGRES_DB: ${DB_NAME:-printcost_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_test_data:
+    driver: local
