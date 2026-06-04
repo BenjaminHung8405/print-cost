@@ -9,7 +9,8 @@
 ```
 print-cost/
 ├── docs/                          # 📚 Documentation
-│   └── README.md                  # Unified documentation & guides
+│   ├── README.md                  # Technical guides & operations
+│   └── functional_requirements.md # Functional requirements specification
 │
 ├── scripts/                       # 🔧 Automation scripts
 │   ├── init.sql                   # Database schema
@@ -51,9 +52,10 @@ docker-compose up -d
 
 ## 📚 Documentation
 
-All technical reference documentation, including setup guides, architecture details, database schemas, and operation checklists, is consolidated in:
+All reference documentation is located in the `docs` directory:
 
-👉 **[docs/README.md](docs/README.md)**
+- 📋 **[Đặc tả Yêu cầu Chức năng (Functional Requirements)](docs/functional_requirements.md)**
+- 🛠️ **[Hướng dẫn & Tài liệu Kỹ thuật Chi tiết](docs/README.md)**
 
 ---
 

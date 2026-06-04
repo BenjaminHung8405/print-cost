@@ -5,11 +5,12 @@ Hệ thống quản lý chi phí in 3D (Self-hosted) được thiết kế cho x
 ---
 
 ## 📋 MỤC LỤC
-1. [⚡ Hướng dẫn Nhanh (Quick Start)](#-hướng-dẫn-nhanh-quick-start)
-2. [📐 Kiến trúc Hệ thống (System Architecture)](#-kiến-trúc-hệ-thống-system-architecture)
-3. [🗄️ Database Schema & Bảo vệ mức DB (Database & Security)](#-database-schema--bảo-vệ-mức-db-database--security)
-4. [🚀 Vận hành & Bảo trì (Operations & Maintenance)](#-vận-hành--bảo-trì-operations--maintenance)
-5. [🆘 Xử lý Sự cố & Troubleshooting](#-xử-lý-sự-cố--troubleshooting)
+1. [📋 Đặc tả Yêu cầu Chức năng (Functional Requirements)](functional_requirements.md)
+2. [⚡ Hướng dẫn Nhanh (Quick Start)](#-hướng-dẫn-nhanh-quick-start)
+3. [📐 Kiến trúc Hệ thống (System Architecture)](#-kiến-trúc-hệ-thống-system-architecture)
+4. [🗄️ Database Schema & Bảo vệ mức DB (Database & Security)](#-database-schema--bảo-vệ-mức-db-database--security)
+5. [🚀 Vận hành & Bảo trì (Operations & Maintenance)](#-vận-hành--bảo-trì-operations--maintenance)
+6. [🆘 Xử lý Sự cố & Troubleshooting](#-xử-lý-sự-cố--troubleshooting)
 
 ---
 
