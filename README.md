@@ -9,14 +9,12 @@
 ```
 print-cost/
 ├── docs/                          # 📚 Documentation
-│   ├── README.md                  # Getting started guide
-│   ├── SETUP_SUMMARY.md           # Setup checklist
-│   ├── ARCHITECTURE.md            # Technical architecture
-│   └── DEPLOYMENT.md              # Operations & maintenance
+│   └── README.md                  # Unified documentation & guides
 │
 ├── scripts/                       # 🔧 Automation scripts
 │   ├── init.sql                   # Database schema
 │   ├── backup.sh                  # Backup script
+│   ├── test-db.sh                 # Database verification script
 │   └── setup-launchd.sh           # Launchd setup
 │
 ├── docker-compose.yml             # Production config
@@ -53,16 +51,9 @@ docker-compose up -d
 
 ## 📚 Documentation
 
-All documentation is in the [`docs/`](docs/) folder:
+All technical reference documentation, including setup guides, architecture details, database schemas, and operation checklists, is consolidated in:
 
-| Document | Purpose |
-|----------|---------|
-| **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** | ⚡ 5-minute setup (START HERE!) |
-| **[DATABASE.md](docs/DATABASE.md)** | 🗄️ Database setup, operations & schema |
-| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | 📐 System design & technical details |
-| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | 🚀 Full deployment & operations guide |
-
-👉 **[Start with GETTING_STARTED.md](docs/GETTING_STARTED.md)**
+👉 **[docs/README.md](docs/README.md)**
 
 ---
 
@@ -111,7 +102,7 @@ docker exec -it printcost_db psql -U admin -d printcost_db
 
 ## 📞 Support
 
-Check [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for troubleshooting guide.
+Check [docs/README.md](docs/README.md) for troubleshooting guide.
 
 ---
 
