@@ -57,12 +57,12 @@ All documentation is in the [`docs/`](docs/) folder:
 
 | Document | Purpose |
 |----------|---------|
-| **[README.md](docs/README.md)** | Detailed setup & usage guide |
-| **[SETUP_SUMMARY.md](docs/SETUP_SUMMARY.md)** | Setup checklist & quick reference |
-| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | System design & technical details |
-| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | Production deployment & operations |
+| **[GETTING_STARTED.md](docs/GETTING_STARTED.md)** | ⚡ 5-minute setup (START HERE!) |
+| **[DATABASE.md](docs/DATABASE.md)** | 🗄️ Database setup, operations & schema |
+| **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | 📐 System design & technical details |
+| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | 🚀 Full deployment & operations guide |
 
-👉 **[Start with SETUP_SUMMARY.md](docs/SETUP_SUMMARY.md)**
+👉 **[Start with GETTING_STARTED.md](docs/GETTING_STARTED.md)**
 
 ---
 
