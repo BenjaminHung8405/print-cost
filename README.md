@@ -10,7 +10,8 @@
 print-cost/
 ├── docs/                          # 📚 Documentation
 │   ├── README.md                  # Technical guides & operations
-│   └── functional_requirements.md # Functional requirements specification
+│   ├── functional_requirements.md # Functional requirements specification
+│   └── db_schema_v4.md            # Database schema V4 specification
 │
 ├── scripts/                       # 🔧 Automation scripts
 │   ├── init.sql                   # Database schema
@@ -55,6 +56,7 @@ docker-compose up -d
 All reference documentation is located in the `docs` directory:
 
 - 📋 **[Đặc tả Yêu cầu Chức năng (Functional Requirements)](docs/functional_requirements.md)**
+- 🗄️ **[Đặc tả kỹ thuật Database Schema V4 (Schema Specification)](docs/db_schema_v4.md)**
 - 🛠️ **[Hướng dẫn & Tài liệu Kỹ thuật Chi tiết](docs/README.md)**
 
 ---

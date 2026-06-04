@@ -8,7 +8,7 @@ Hệ thống quản lý chi phí in 3D (Self-hosted) được thiết kế cho x
 1. [📋 Đặc tả Yêu cầu Chức năng (Functional Requirements)](functional_requirements.md)
 2. [⚡ Hướng dẫn Nhanh (Quick Start)](#-hướng-dẫn-nhanh-quick-start)
 3. [📐 Kiến trúc Hệ thống (System Architecture)](#-kiến-trúc-hệ-thống-system-architecture)
-4. [🗄️ Database Schema & Bảo vệ mức DB (Database & Security)](#-database-schema--bảo-vệ-mức-db-database--security)
+4. [🗄️ Đặc tả kỹ thuật Database Schema V4](db_schema_v4.md) (và [Bảo vệ mức DB](#-database-schema--bảo-vệ-mức-db-database--security))
 5. [🚀 Vận hành & Bảo trì (Operations & Maintenance)](#-vận-hành--bảo-trì-operations--maintenance)
 6. [🆘 Xử lý Sự cố & Troubleshooting](#-xử-lý-sự-cố--troubleshooting)
 
@@ -143,6 +143,10 @@ Mỗi service được cấu hình giới hạn cứng tài nguyên (Resource Li
 ## 🗄️ Database Schema & Bảo vệ mức DB (Database & Security)
 
 Hệ thống sử dụng PostgreSQL 16 với schema cấu trúc chặt chẽ (Schema V4 Ironclad).
+
+> [!TIP]
+> Để xem chi tiết đặc tả kỹ thuật chi tiết của database schema, công thức định giá, các ràng buộc toàn vẹn tài chính và quy tắc máy trạng thái, vui lòng tham khảo:
+> **👉 [Đặc tả kỹ thuật Database Schema V4 (db_schema_v4.md)](db_schema_v4.md)**
 
 ### 1. Cấu trúc bảng (7 Tables)
 1. `materials`: Lưu trữ thông tin cuộn nhựa (PLA, ABS, PETG...) gồm đơn giá/kg, tỉ lệ hao hụt (`fail_rate`), margin mặc định.
