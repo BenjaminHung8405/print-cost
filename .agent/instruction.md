@@ -305,6 +305,7 @@ afterAll(async () => {
   - `instruction.md`: Consolidated instructions and guidelines (this file).
   - `SKILL/`: Folder containing community/third-party agent skills.
     - `diegosouzapw-postgres-best-practices-v3/`
+    - `diegosouzapw-ui-ux-pro-max-v3/`
     - `majiayu000-api-design-absolutelyskilled-absolutelyskilled/`
     - `majiayu000-api-rest-design/`
     - `partme-ai-vitest/`
@@ -348,4 +349,8 @@ When performing development tasks in this repository, agents must refer to and a
 3. **`partme-ai-vitest`**:
    - **When to use**: When writing or updating unit and integration test suites, mock requests/responses, database transaction rollbacks in tests, and test hook workflows (`beforeAll`, `beforeEach`, `afterAll`).
    - **Key focus**: Effective assertion testing, isolation of database test states, and clean process termination.
+
+4. **`diegosouzapw-ui-ux-pro-max-v3`**:
+   - **When to use**: When designing new UI components, features, or pages for both the web and mobile applications, selecting style profiles, color palettes, typography systems, or auditing layouts for UX, accessibility (WCAG), performance, and responsive layout guidelines.
+   - **Key focus**: Comprehensive style guidelines, access to UI database, design systems generation, anti-patterns checking, and pre-delivery checklist verification.
 
