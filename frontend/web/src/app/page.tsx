@@ -1,9 +1,6 @@
-import React from 'react';
+import { redirect } from 'next/navigation';
 
-export default function DashboardPage() {
-  return (
-    <div>
-      <h1>Dashboard - Thống kê xưởng in</h1>
-    </div>
-  );
+// Root "/" redirects to the main feature: Create Order
+export default function HomePage() {
+  redirect('/orders/create');
 }

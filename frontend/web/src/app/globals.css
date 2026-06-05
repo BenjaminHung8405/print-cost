@@ -2,67 +2,121 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
-/* Import centralized design system tokens (light + dark CSS variables) */
-@import '../../../../design-system/variables.css';
-
 /* Tailwind v4 dark mode strategy: class-based toggle on <html> */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* =============================================================
-     Brand tokens – reference CSS variables from design-system
-     so light/dark switching works automatically when .dark is
-     added/removed from <html> by the ThemeToggle component.
-     ============================================================= */
+  --font-sans: var(--font-sans), 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), 'JetBrains Mono', ui-monospace, monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
 
-  /* Brand palette – mapped to CSS variable names */
-  --color-brand-bg:         var(--color-bg);
-  --color-brand-surface:    var(--color-surface);
-  --color-brand-surface-2:  var(--color-surface-2);
-  --color-brand-primary:    var(--color-primary);
-  --color-brand-cta:        var(--color-cta);
-  --color-brand-accent:     var(--color-accent);
-  --color-brand-text:       var(--color-text);
-  --color-brand-text-muted: var(--color-text-muted);
-  --color-brand-border:     var(--color-border);
-  --color-brand-success:    var(--color-success);
-  --color-brand-danger:     var(--color-danger);
-  --color-brand-warning:    var(--color-warning);
+/* Light Mode - Soft Slate */
+:root {
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0F172A;
+  --muted: #F1F5F9;
+  --muted-foreground: #475569;
+  --accent: #3B82F6;
+  --accent-foreground: #FFFFFF;
+  --destructive: #DC2626;
+  --border: #CBD5E1;
+  --input: #CBD5E1;
+  --ring: #2563EB;
+  --chart-1: #059669;
+  --chart-2: #2563EB;
+  --chart-3: #D97706;
+  --chart-4: #DC2626;
+  --chart-5: #7C3AED;
+  --radius: 0.75rem;
+  --sidebar: #F8FAFC;
+  --sidebar-foreground: #0F172A;
+  --sidebar-primary: #2563EB;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F1F5F9;
+  --sidebar-accent-foreground: #0F172A;
+  --sidebar-border: #CBD5E1;
+  --sidebar-ring: #2563EB;
+}
 
-  /* Font families */
-  --font-mono:    'JetBrains Mono', monospace;
-  --font-body:    'IBM Plex Sans', sans-serif;
-  --font-heading: 'JetBrains Mono', monospace;
-  --font-sans:    'IBM Plex Sans', sans-serif;
-
-  /* =============================================================
-     Shadcn UI token mapping – also driven by CSS variables so
-     Shadcn components (Card, Input, Button, Select, etc.) respond
-     to theme changes without any code changes.
-     ============================================================= */
-  --color-background:          var(--color-bg);
-  --color-foreground:          var(--color-text);
-  --color-card:                var(--color-surface);
-  --color-card-foreground:     var(--color-text);
-  --color-popover:             var(--color-surface);
-  --color-popover-foreground:  var(--color-text);
-  --color-primary:             var(--color-primary);
-  --color-primary-foreground:  var(--color-text);
-  --color-secondary:           var(--color-surface-2);
-  --color-secondary-foreground: var(--color-text);
-  --color-muted:               var(--color-surface-2);
-  --color-muted-foreground:    var(--color-text-muted);
-  --color-accent:              var(--color-accent);
-  --color-accent-foreground:   var(--color-bg);
-  --color-destructive:         var(--color-danger);
-  --color-destructive-foreground: var(--color-text);
-  --color-border:              var(--color-border);
-  --color-input:               var(--color-border);
-  --color-ring:                var(--color-primary);
-
-  --radius-sm: 0.125rem;
-  --radius-md: 0.25rem;
-  --radius-lg: 0.5rem;
+/* Dark Mode - OLED Industrial */
+.dark {
+  --background: #0F172A;
+  --foreground: #F1F5F9;
+  --card: #1E293B;
+  --card-foreground: #F1F5F9;
+  --popover: #1E293B;
+  --popover-foreground: #F1F5F9;
+  --primary: #3B82F6;
+  --primary-foreground: #FFFFFF;
+  --secondary: #0F172A;
+  --secondary-foreground: #F1F5F9;
+  --muted: #334155;
+  --muted-foreground: #94A3B8;
+  --accent: #60A5FA;
+  --accent-foreground: #0F172A;
+  --destructive: #EF4444;
+  --border: #334155;
+  --input: #334155;
+  --ring: #3B82F6;
+  --chart-1: #10B981;
+  --chart-2: #3B82F6;
+  --chart-3: #F59E0B;
+  --chart-4: #EF4444;
+  --chart-5: #A78BFA;
+  --sidebar: #1E293B;
+  --sidebar-foreground: #F1F5F9;
+  --sidebar-primary: #3B82F6;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #334155;
+  --sidebar-accent-foreground: #F1F5F9;
+  --sidebar-border: #334155;
+  --sidebar-ring: #3B82F6;
 }
 
 @layer base {
@@ -73,7 +127,17 @@
     @apply bg-background text-foreground;
   }
   html {
-    @apply font-body;
+    @apply font-sans bg-background;
   }
 }
 
+/* Remove number input spinner (UX improvement for VND price inputs) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

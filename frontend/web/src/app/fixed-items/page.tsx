@@ -1,9 +1,10 @@
-import React from 'react';
-
 export default function FixedItemsPage() {
   return (
-    <div>
-      <h1>Quản lý Vật tư phụ & Đóng gói (Fixed Items)</h1>
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center space-y-2">
+        <h1 className="font-mono text-2xl font-bold text-foreground">Vật tư & Phụ kiện</h1>
+        <p className="text-muted-foreground text-sm">Coming soon — chức năng đang phát triển</p>
+      </div>
     </div>
   );
 }

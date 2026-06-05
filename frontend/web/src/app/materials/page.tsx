@@ -1,9 +1,10 @@
-import React from 'react';
-
 export default function MaterialsPage() {
   return (
-    <div>
-      <h1>Quản lý loại nhựa in (Materials)</h1>
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center space-y-2">
+        <h1 className="font-mono text-2xl font-bold text-foreground">Quản lý vật liệu</h1>
+        <p className="text-muted-foreground text-sm">Coming soon — chức năng đang phát triển</p>
+      </div>
     </div>
   );
 }
