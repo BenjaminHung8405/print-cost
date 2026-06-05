@@ -1,6 +1,6 @@
 import React from 'react';
 import { JetBrains_Mono, IBM_Plex_Sans } from 'next/font/google';
-import '../../../../design-system/variables.css';
+import './globals.css';
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
