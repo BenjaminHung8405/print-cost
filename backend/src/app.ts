@@ -7,6 +7,7 @@ import { verifyDatabaseConnection, db } from './core/database/client';
 import { materialsRouter } from './api/routes/materials';
 import { fixedItemsRouter } from './api/routes/fixed-items';
 import { productsRouter } from './api/routes/products';
+import { ordersRouter } from './api/routes/orders';
 import { errorHandler } from './api/middlewares/errorHandler';
 
 // Load environment variables
@@ -81,6 +82,7 @@ app.post('/api/calculate', (req: Request, res: Response) => {
 app.use('/api/materials', materialsRouter);
 app.use('/api/fixed-items', fixedItemsRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/orders', ordersRouter);
 
 // Register centralized error handling middleware at the very end
 app.use(errorHandler);

@@ -107,3 +107,25 @@ export const createProductSchema = z.object({
   ).optional().default([])
 });
 
+// Validation schema for creating order items
+export const createOrderItemSchema = z.object({
+  product_id: z.number({ invalid_type_error: 'ID sản phẩm phải là số nguyên' })
+    .int('ID sản phẩm phải là số nguyên')
+    .positive('ID sản phẩm không hợp lệ'),
+  quantity: z.number({ invalid_type_error: 'Số lượng sản phẩm phải là số nguyên' })
+    .int('Số lượng sản phẩm phải là số nguyên')
+    .positive('Số lượng phải lớn hơn 0'),
+  price_override: safeCoerceNumber.pipe(
+    z.number({ invalid_type_error: 'Giá ghi đè phải là một số' })
+      .nonnegative('Giá ghi đè không được phép âm')
+      .optional()
+      .nullable()
+  )
+});
+
+// Validation schema for creating orders
+export const createOrderSchema = z.object({
+  customer_name: z.string().trim().min(1, 'Tên khách hàng không được để trống').max(150),
+  customer_contact: z.string().trim().max(150).optional().nullable(),
+  items: z.array(createOrderItemSchema).min(1, 'Đơn hàng phải có ít nhất 1 sản phẩm')
+});

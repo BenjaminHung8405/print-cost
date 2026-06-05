@@ -327,3 +327,22 @@ When writing or modifying files:
 2. **Never Zero-out Margins**: Be careful with defaults. Default margins must reside between 0.00 and 1.00.
 3. **No Placeholders**: Never write dummy functions like `// TODO: calculate this later`. Implement all features completely.
 4. **Use Types**: Maintain full type safety across APIs and UI components. Match types directly with the database fields.
+
+---
+
+## 10. Usage Guidelines for Agent Skills (SKILL)
+
+When performing development tasks in this repository, agents must refer to and apply the appropriate external skills stored in `.agent/SKILL/` based on the task type:
+
+1. **`diegosouzapw-postgres-best-practices-v3`**:
+   - **When to use**: When designing, modifying, or querying PostgreSQL database schemas, writing migration/initialization scripts, optimizing queries (e.g., indexes, joins), or managing transactions.
+   - **Key focus**: Strict adherence to naming conventions, performance optimization, and data-integrity constraints.
+
+2. **`majiayu000-api-design-absolutelyskilled-absolutelyskilled` & `majiayu000-api-rest-design`**:
+   - **When to use**: When defining new API routes, request/response payload schemas (Zod), status code standards, error payload structures, and overall RESTful API architecture.
+   - **Key focus**: Clear endpoint resources, consistent URL routing, standard HTTP verbs, and robust REST standards.
+
+3. **`partme-ai-vitest`**:
+   - **When to use**: When writing or updating unit and integration test suites, mock requests/responses, database transaction rollbacks in tests, and test hook workflows (`beforeAll`, `beforeEach`, `afterAll`).
+   - **Key focus**: Effective assertion testing, isolation of database test states, and clean process termination.
+
