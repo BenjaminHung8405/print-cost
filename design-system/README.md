@@ -17,21 +17,41 @@ To prevent eye strain during long tracking sessions in the print workshop, Print
 
 ## 🎨 Color Palette
 
-We use a curated, harmonious palette based on deep slates and electric blues to give a premium feel. Avoid basic, uncalibrated primary colors.
+We maintain two harmonious palettes: a **Soft Slate Light Mode** for demos and outdoor use, and a **OLED Industrial Dark Mode** for low-light workshop environments.
 
-| Role | Variable (CSS) | Hex Value | Visual Swatch / Description |
+### 🌤️ Light Mode (`:root` / `.light`)
+
+| Role | Variable (CSS) | Hex Value | Notes |
 | :--- | :--- | :--- | :--- |
-| **Background** | `--color-bg` | `#0F172A` | Deep Charcoal Black / Dark Slate (90% darkness) |
-| **Card / Surface** | `--color-surface` | `#1E293B` | Lighter Slate for containers and input cards |
-| **Primary Accent** | `--color-primary` | `#3B82F6` | Electric Blue for active highlights, focus rings |
-| **CTA Accent** | `--color-cta` | `#2563EB` | Deep Royal Blue for submit and confirmation buttons |
-| **Secondary Accent** | `--color-accent` | `#60A5FA` | Neon Blue for hover states and subtle icons |
-| **Text Primary** | `--color-text` | `#F1F5F9` | Cool Off-White for high readability |
-| **Text Secondary** | `--color-text-muted` | `#94A3B8` | Muted Gray for labels, helper text, inactive items |
-| **Borders** | `--color-border` | `#334155` | Defined borders for cards and tables |
-| **Success / Profit** | `--color-success` | `#10B981` | Emerald Green for positive margins, active printer, completed orders |
-| **Error / Loss** | `--color-danger` | `#EF4444` | Crimson Red for locked state, waste, cancelled orders |
-| **Warning** | `--color-warning` | `#F59E0B` | Amber Yellow for warnings, warning thresholds, draft state |
+| **Background** | `--color-bg` | `#F8FAFC` | Slate-50 — soft page background |
+| **Card / Surface** | `--color-surface` | `#FFFFFF` | White — card and input surfaces |
+| **Nested Surface** | `--color-surface-2` | `#F1F5F9` | Slate-100 — nested card, receipt bg |
+| **Primary Accent** | `--color-primary` | `#2563EB` | Blue-600 — focus rings, active highlights |
+| **CTA Accent** | `--color-cta` | `#1D4ED8` | Blue-700 — submit / confirm buttons |
+| **Secondary Accent** | `--color-accent` | `#3B82F6` | Blue-500 — hover states, subtle icons |
+| **Text Primary** | `--color-text` | `#0F172A` | Slate-900 — contrast ratio ~17:1 ✅ WCAG AAA |
+| **Text Secondary** | `--color-text-muted` | `#475569` | Slate-600 — labels, helper text ~5.9:1 ✅ WCAG AA |
+| **Borders** | `--color-border` | `#CBD5E1` | Slate-300 — card and field borders |
+| **Success / Profit** | `--color-success` | `#059669` | Emerald-600 — positive margins, completed |
+| **Error / Loss** | `--color-danger` | `#DC2626` | Red-600 — delete, error |
+| **Warning** | `--color-warning` | `#D97706` | Amber-600 — draft, thresholds |
+
+### 🌑 Dark Mode (`.dark` / `prefers-color-scheme: dark`)
+
+| Role | Variable (CSS) | Hex Value | Notes |
+| :--- | :--- | :--- | :--- |
+| **Background** | `--color-bg` | `#0F172A` | Deep Charcoal / OLED (90% darkness) |
+| **Card / Surface** | `--color-surface` | `#1E293B` | Slate-800 — containers and input cards |
+| **Nested Surface** | `--color-surface-2` | `#0F172A` | Slate-900 — receipt background |
+| **Primary Accent** | `--color-primary` | `#3B82F6` | Blue-500 — focus rings, active highlights |
+| **CTA Accent** | `--color-cta` | `#2563EB` | Blue-600 — submit / confirm buttons |
+| **Secondary Accent** | `--color-accent` | `#60A5FA` | Blue-400 — hover states, subtle icons |
+| **Text Primary** | `--color-text` | `#F1F5F9` | Slate-100 — high readability |
+| **Text Secondary** | `--color-text-muted` | `#94A3B8` | Slate-400 — muted labels, inactive items |
+| **Borders** | `--color-border` | `#334155` | Slate-700 — card and field borders |
+| **Success / Profit** | `--color-success` | `#10B981` | Emerald-500 — active printer, completed |
+| **Error / Loss** | `--color-danger` | `#EF4444` | Red-500 — locked state, cancelled |
+| **Warning** | `--color-warning` | `#F59E0B` | Amber-500 — warnings, draft state |
 
 ---
 
@@ -130,54 +150,27 @@ const ibmPlexSans = IBM_Plex_Sans({
 // <html className={`${jetbrainsMono.variable} ${ibmPlexSans.variable}`}>
 ```
 
-#### Tailwind CSS Integration mapping (Optional)
-If incorporating Tailwind CSS (v3 or v4) later, map the CSS tokens into your config:
+#### Theme Switching (Web)
+Theme is controlled by the `.dark` class on `<html>`. A `ThemeToggle` component stores preference in `localStorage` and applies the class. No hardcoded colors in component files.
 
-##### Tailwind v3 (`tailwind.config.js`):
-```javascript
-module.exports = {
-  theme: {
-    extend: {
-      colors: {
-        brand: {
-          bg: 'var(--color-bg)',
-          surface: 'var(--color-surface)',
-          primary: 'var(--color-primary)',
-          cta: 'var(--color-cta)',
-          accent: 'var(--color-accent)',
-          text: 'var(--color-text)',
-          'text-muted': 'var(--color-text-muted)',
-          border: 'var(--color-border)',
-          success: 'var(--color-success)',
-          danger: 'var(--color-danger)',
-          warning: 'var(--color-warning)',
-        }
-      },
-      fontFamily: {
-        heading: ['var(--font-heading)', 'monospace'],
-        body: ['var(--font-body)', 'sans-serif'],
-      }
-    }
-  }
-}
+```typescript
+// Toggling dark mode:
+document.documentElement.classList.toggle('dark');
+localStorage.setItem('theme', 'dark'); // or 'light'
 ```
 
-##### Tailwind v4 (`globals.css`):
+#### Tailwind CSS v4 Integration (`globals.css`)
+Tailwind tokens in `@theme inline` reference CSS variables from `design-system/variables.css`. This way, switching `.dark` on `<html>` automatically updates every `bg-background`, `text-foreground`, `border-border` class without changing component JSX.
+
 ```css
-@theme {
-  --color-brand-bg: var(--color-bg);
-  --color-brand-surface: var(--color-surface);
-  --color-brand-primary: var(--color-primary);
-  --color-brand-cta: var(--color-cta);
-  --color-brand-accent: var(--color-accent);
-  --color-brand-text: var(--color-text);
-  --color-brand-text-muted: var(--color-text-muted);
-  --color-brand-border: var(--color-border);
-  --color-brand-success: var(--color-success);
-  --color-brand-danger: var(--color-danger);
-  --color-brand-warning: var(--color-warning);
-  --font-heading: var(--font-heading), monospace;
-  --font-body: var(--font-body), sans-serif;
+/* globals.css */
+@import '../../../../design-system/variables.css';
+
+@theme inline {
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
+  --color-card:       var(--color-surface);
+  /* ... all Shadcn tokens map to CSS variables ... */
 }
 ```
 
@@ -186,14 +179,33 @@ module.exports = {
 ### 2. Mobile (Flutter)
 
 #### Color constants (`theme.dart`)
-Dart color tokens are configured as 32-bit integer colors containing the alpha transparency prefix (`0xFF` for 100% opacity):
+Both light and dark color constants are defined, mirroring the CSS variables exactly:
 ```dart
 class PrintCostTheme {
-  static const Color colorBg = Color(0xFF0F172A);
-  static const Color colorSurface = Color(0xFF1E293B);
-  static const Color colorPrimary = Color(0xFF3B82F6);
-  // ... maps perfectly to hex colors
+  // Dark Mode (mirrors .dark in variables.css)
+  static const Color darkBg      = Color(0xFF0F172A);
+  static const Color darkSurface = Color(0xFF1E293B);
+  // ...
+
+  // Light Mode (mirrors :root in variables.css)
+  static const Color lightBg      = Color(0xFFF8FAFC);
+  static const Color lightSurface = Color(0xFFFFFFFF);
+  // ...
+
+  static ThemeData get darkTheme  => _buildTheme(brightness: Brightness.dark, ...);
+  static ThemeData get lightTheme => _buildTheme(brightness: Brightness.light, ...);
 }
+```
+
+#### Wiring themes in `main.dart`
+```dart
+MaterialApp(
+  theme: PrintCostTheme.lightTheme,
+  darkTheme: PrintCostTheme.darkTheme,
+  themeMode: ThemeMode.system, // follows device setting
+  // themeMode: ThemeMode.dark,  // force dark (workshop default)
+  // themeMode: ThemeMode.light, // force light (demo / outdoor)
+);
 ```
 
 #### Dynamic Google Fonts loading (`pubspec.yaml`)

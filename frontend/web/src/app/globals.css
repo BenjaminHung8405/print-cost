@@ -2,49 +2,63 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
+/* Import centralized design system tokens (light + dark CSS variables) */
+@import '../../../../design-system/variables.css';
+
+/* Tailwind v4 dark mode strategy: class-based toggle on <html> */
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  /* PrintCost Custom Colors hardcoded as HEX design tokens (OLED Dark Mode) */
-  --color-brand-bg: #0f172a;
-  --color-brand-surface: #1e293b;
-  --color-brand-primary: #3b82f6;
-  --color-brand-cta: #2563eb;
-  --color-brand-accent: #60a5fa;
-  --color-brand-text: #f1f5f9;
-  --color-brand-text-muted: #94a3b8;
-  --color-brand-border: #334155;
-  --color-brand-success: #10b981;
-  --color-brand-danger: #ef4444;
-  --color-brand-warning: #f59e0b;
-  --color-brand-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+  /* =============================================================
+     Brand tokens – reference CSS variables from design-system
+     so light/dark switching works automatically when .dark is
+     added/removed from <html> by the ThemeToggle component.
+     ============================================================= */
+
+  /* Brand palette – mapped to CSS variable names */
+  --color-brand-bg:         var(--color-bg);
+  --color-brand-surface:    var(--color-surface);
+  --color-brand-surface-2:  var(--color-surface-2);
+  --color-brand-primary:    var(--color-primary);
+  --color-brand-cta:        var(--color-cta);
+  --color-brand-accent:     var(--color-accent);
+  --color-brand-text:       var(--color-text);
+  --color-brand-text-muted: var(--color-text-muted);
+  --color-brand-border:     var(--color-border);
+  --color-brand-success:    var(--color-success);
+  --color-brand-danger:     var(--color-danger);
+  --color-brand-warning:    var(--color-warning);
 
   /* Font families */
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+  --font-body:    'IBM Plex Sans', sans-serif;
   --font-heading: 'JetBrains Mono', monospace;
-  --font-sans: 'IBM Plex Sans', sans-serif;
+  --font-sans:    'IBM Plex Sans', sans-serif;
 
-  /* Shadcn theme integration mapped to HEX design tokens */
-  --color-background: #0f172a;
-  --color-foreground: #f1f5f9;
-  --color-card: #1e293b;
-  --color-card-foreground: #f1f5f9;
-  --color-popover: #1e293b;
-  --color-popover-foreground: #f1f5f9;
-  --color-primary: #3b82f6;
-  --color-primary-foreground: #f1f5f9;
-  --color-secondary: #334155;
-  --color-secondary-foreground: #f1f5f9;
-  --color-muted: #334155;
-  --color-muted-foreground: #94a3b8;
-  --color-accent: #60a5fa;
-  --color-accent-foreground: #0f172a;
-  --color-destructive: #ef4444;
-  --color-destructive-foreground: #f1f5f9;
-  --color-border: #334155;
-  --color-input: #334155;
-  --color-ring: #3b82f6;
+  /* =============================================================
+     Shadcn UI token mapping – also driven by CSS variables so
+     Shadcn components (Card, Input, Button, Select, etc.) respond
+     to theme changes without any code changes.
+     ============================================================= */
+  --color-background:          var(--color-bg);
+  --color-foreground:          var(--color-text);
+  --color-card:                var(--color-surface);
+  --color-card-foreground:     var(--color-text);
+  --color-popover:             var(--color-surface);
+  --color-popover-foreground:  var(--color-text);
+  --color-primary:             var(--color-primary);
+  --color-primary-foreground:  var(--color-text);
+  --color-secondary:           var(--color-surface-2);
+  --color-secondary-foreground: var(--color-text);
+  --color-muted:               var(--color-surface-2);
+  --color-muted-foreground:    var(--color-text-muted);
+  --color-accent:              var(--color-accent);
+  --color-accent-foreground:   var(--color-bg);
+  --color-destructive:         var(--color-danger);
+  --color-destructive-foreground: var(--color-text);
+  --color-border:              var(--color-border);
+  --color-input:               var(--color-border);
+  --color-ring:                var(--color-primary);
 
   --radius-sm: 0.125rem;
   --radius-md: 0.25rem;
@@ -62,3 +76,4 @@
     @apply font-body;
   }
 }
+
