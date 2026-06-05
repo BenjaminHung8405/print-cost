@@ -85,6 +85,8 @@ describe('Orders API Integration Tests', () => {
     await db.destroy();
   });
 
+  // ─── CREATE ────────────────────────────────────────────────────────────────
+
   it('should create an order successfully and freeze snapshot parameters', async () => {
     const res = await request(app)
       .post('/api/orders')
@@ -253,5 +255,173 @@ describe('Orders API Integration Tests', () => {
     // Verify that NO order was written in 'orders' for customer 'Khach Hang X'
     const orders = await db('orders').where({ customer_name: 'Khach Hang X' });
     expect(orders.length).toBe(0);
+  });
+
+  // ─── LIST ──────────────────────────────────────────────────────────────────
+
+  it('should list all orders with aggregated items', async () => {
+    const res = await request(app).get('/api/orders');
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+
+    // At least the orders we created above should exist
+    expect(res.body.data.length).toBeGreaterThan(0);
+
+    const order = res.body.data[0];
+    expect(order).toHaveProperty('id');
+    expect(order).toHaveProperty('customer_name');
+    expect(order).toHaveProperty('status');
+    expect(order).toHaveProperty('items');
+    expect(Array.isArray(order.items)).toBe(true);
+    expect(order).toHaveProperty('total_final_invoice_price');
+    expect(order).toHaveProperty('total_raw_cogs');
+  });
+
+  // ─── DETAIL ────────────────────────────────────────────────────────────────
+
+  it('should return detailed order with items by ID', async () => {
+    // Create an order to inspect
+    const createRes = await request(app)
+      .post('/api/orders')
+      .send({
+        customer_name: 'Detail Test Customer',
+        customer_contact: 'https://facebook.com/test',
+        items: [{ product_id: testProductId, quantity: 3 }]
+      });
+
+    expect(createRes.status).toBe(201);
+    const orderId = createRes.body.data.order_id;
+
+    const res = await request(app).get(`/api/orders/${orderId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const order = res.body.data;
+    expect(order.id).toBe(orderId);
+    expect(order.customer_name).toBe('Detail Test Customer');
+    expect(order.customer_contact).toBe('https://facebook.com/test');
+    expect(Array.isArray(order.items)).toBe(true);
+    expect(order.items.length).toBe(1);
+
+    const item = order.items[0];
+    expect(item.snapshot_product_name).toBe('TEST-KEYCAP');
+    expect(item.quantity).toBe(3);
+    expect(item).toHaveProperty('raw_material_cost');
+    expect(item).toHaveProperty('raw_machine_cost');
+    expect(item).toHaveProperty('raw_unit_cogs');
+    expect(item).toHaveProperty('total_item_price');
+
+    // Totals should be computable
+    expect(order.total_final_invoice_price).toBeGreaterThan(0);
+    expect(order.total_raw_cogs).toBeGreaterThan(0);
+  });
+
+  it('should return 404 for non-existent order ID', async () => {
+    const res = await request(app).get('/api/orders/999999');
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+  });
+
+  // ─── STATUS UPDATE (STATE MACHINE) ─────────────────────────────────────────
+
+  it('should update order status following valid state transitions', async () => {
+    // Create a fresh draft order
+    const createRes = await request(app)
+      .post('/api/orders')
+      .send({
+        customer_name: 'State Machine Test',
+        items: [{ product_id: testProductId, quantity: 1 }]
+      });
+    expect(createRes.status).toBe(201);
+    const orderId = createRes.body.data.order_id;
+
+    // draft -> printing
+    const res1 = await request(app)
+      .patch(`/api/orders/${orderId}`)
+      .send({ status: 'printing' });
+    expect(res1.status).toBe(200);
+    expect(res1.body.data.status).toBe('printing');
+
+    // printing -> completed
+    const res2 = await request(app)
+      .patch(`/api/orders/${orderId}`)
+      .send({ status: 'completed' });
+    expect(res2.status).toBe(200);
+    expect(res2.body.data.status).toBe('completed');
+  });
+
+  it('should reject invalid state transitions', async () => {
+    // Create a fresh draft order
+    const createRes = await request(app)
+      .post('/api/orders')
+      .send({
+        customer_name: 'Invalid Transition Test',
+        items: [{ product_id: testProductId, quantity: 1 }]
+      });
+    expect(createRes.status).toBe(201);
+    const orderId = createRes.body.data.order_id;
+
+    // draft -> delivered (skip all steps — invalid!)
+    const res = await request(app)
+      .patch(`/api/orders/${orderId}`)
+      .send({ status: 'delivered' });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('should cancel an order WITHOUT loss counting and remain editable', async () => {
+    const createRes = await request(app)
+      .post('/api/orders')
+      .send({
+        customer_name: 'Cancel No Loss Test',
+        items: [{ product_id: testProductId, quantity: 1 }]
+      });
+    expect(createRes.status).toBe(201);
+    const orderId = createRes.body.data.order_id;
+
+    // Cancel without loss
+    const cancelRes = await request(app)
+      .patch(`/api/orders/${orderId}`)
+      .send({ status: 'cancelled', is_loss_counted: false });
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.data.status).toBe('cancelled');
+    expect(cancelRes.body.data.is_loss_counted).toBe(false);
+
+    // Should NOT be locked — PATCH again should return 400 (terminal state, not 409 lock)
+    const patchAgain = await request(app)
+      .patch(`/api/orders/${orderId}`)
+      .send({ status: 'printing' });
+    expect(patchAgain.status).toBe(400); // No valid transitions from cancelled
+    expect(patchAgain.body.success).toBe(false);
+  });
+
+  it('should activate Ironclad Lock when cancelling with is_loss_counted = true', async () => {
+    // 1. Create a fresh draft order
+    const createRes = await request(app)
+      .post('/api/orders')
+      .send({
+        customer_name: 'Ironclad Lock Test',
+        items: [{ product_id: testProductId, quantity: 1 }]
+      });
+    expect(createRes.status).toBe(201);
+    const orderId = createRes.body.data.order_id;
+
+    // 2. Cancel WITH loss counting -> activates Ironclad Lock in DB
+    const cancelRes = await request(app)
+      .patch(`/api/orders/${orderId}`)
+      .send({ status: 'cancelled', is_loss_counted: true });
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.data.status).toBe('cancelled');
+    expect(cancelRes.body.data.is_loss_counted).toBe(true);
+
+    // 3. Any subsequent PATCH on this order must be rejected (pre-check returns 409)
+    const lockedPatch = await request(app)
+      .patch(`/api/orders/${orderId}`)
+      .send({ status: 'draft' });
+    expect(lockedPatch.status).toBe(409);
+    expect(lockedPatch.body.success).toBe(false);
+    expect(lockedPatch.body.message).toContain('khóa cứng');
   });
 });

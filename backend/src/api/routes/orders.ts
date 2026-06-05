@@ -2,11 +2,162 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../../core/database/client';
 import { createOrderSchema } from '../../core/calculation/schemas';
 import { calculateProductCosts, roundTo100 } from '../../core/calculation/engine';
+import { z } from 'zod';
 import Big from 'big.js';
 
 const router = Router();
 
+// State Machine: valid next states for each status (mirrors frontend lib/orders.ts)
+const VALID_NEXT_STATES: Record<string, string[]> = {
+  draft:     ['printing', 'cancelled'],
+  printing:  ['completed', 'cancelled'],
+  completed: ['shipping', 'cancelled'],
+  shipping:  ['delivered', 'cancelled'],
+  delivered: [],
+  cancelled: [],
+};
+
+// Validation schema for PATCH request
+const patchOrderSchema = z.object({
+  status: z.enum(['draft', 'printing', 'completed', 'shipping', 'delivered', 'cancelled'], {
+    errorMap: () => ({ message: 'Trạng thái đơn hàng không hợp lệ' }),
+  }),
+  is_loss_counted: z.boolean().optional().default(false),
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [GET] List all orders — queries view_orders_summary + aggregates items in 1 SQL
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const orders = await db('view_orders_summary as v')
+      .leftJoin('order_items as oi', 'v.order_id', 'oi.order_id')
+      .select([
+        'v.order_id as id',
+        'v.customer_name',
+        db.raw("COALESCE(v.status::TEXT, 'draft') as status"),
+        'v.is_loss_counted',
+        'v.calculation_version',
+        db.raw('v.total_raw_cogs::FLOAT as total_raw_cogs'),
+        db.raw('v.total_final_invoice_price::FLOAT as total_final_invoice_price'),
+        'v.created_at',
+        'v.updated_at',
+        db.raw(`
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'id',                   oi.id,
+                'product_id',           oi.product_id,
+                'snapshot_product_name',oi.snapshot_product_name,
+                'snapshot_material_name',oi.snapshot_material_name,
+                'quantity',             oi.quantity,
+                'final_unit_price',     oi.final_unit_price::FLOAT,
+                'raw_material_cost',    oi.raw_material_cost::FLOAT,
+                'raw_machine_cost',     oi.raw_machine_cost::FLOAT,
+                'raw_labor_cost',       oi.raw_labor_cost::FLOAT,
+                'raw_fixed_items_cost', oi.raw_fixed_items_cost::FLOAT,
+                'raw_unit_cogs',        oi.raw_unit_cogs::FLOAT,
+                'total_item_price',     oi.total_item_price::FLOAT
+              )
+            ) FILTER (WHERE oi.id IS NOT NULL), '[]'
+          ) as items
+        `)
+      ])
+      .groupBy(
+        'v.order_id', 'v.customer_name', 'v.status', 'v.is_loss_counted',
+        'v.calculation_version', 'v.total_raw_cogs',
+        'v.total_final_invoice_price', 'v.created_at', 'v.updated_at'
+      )
+      .orderBy('v.created_at', 'desc');
+
+    // Also fetch customer_contact from orders table (view doesn't expose it)
+    const contacts = await db('orders').select('id', 'customer_contact');
+    const contactMap = new Map(contacts.map(c => [c.id, c.customer_contact]));
+
+    const enriched = orders.map(o => ({
+      ...o,
+      customer_contact: contactMap.get(o.id) ?? null,
+    }));
+
+    res.json({ success: true, data: enriched });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [GET] Get order detail by ID — single JOIN query, zero N+1
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+
+    // 1 JOIN query: orders + order_items aggregated via json_agg
+    const [order] = await db('orders as o')
+      .leftJoin('order_items as oi', 'o.id', 'oi.order_id')
+      .select([
+        'o.id',
+        'o.customer_name',
+        'o.customer_contact',
+        db.raw("o.status::TEXT as status"),
+        'o.is_loss_counted',
+        'o.calculation_version',
+        'o.created_at',
+        'o.updated_at',
+        db.raw(`
+          COALESCE(
+            json_agg(
+              json_build_object(
+                'id',                    oi.id,
+                'product_id',            oi.product_id,
+                'snapshot_product_name', oi.snapshot_product_name,
+                'snapshot_material_name',oi.snapshot_material_name,
+                'snapshot_weight_gram',  oi.snapshot_weight_gram::FLOAT,
+                'snapshot_print_time_seconds', oi.snapshot_print_time_seconds,
+                'snapshot_labor_time_minutes', oi.snapshot_labor_time_minutes,
+                'snapshot_fail_rate',    oi.snapshot_fail_rate::FLOAT,
+                'snapshot_margin',       oi.snapshot_margin::FLOAT,
+                'quantity',              oi.quantity,
+                'final_unit_price',      oi.final_unit_price::FLOAT,
+                'raw_material_cost',     oi.raw_material_cost::FLOAT,
+                'raw_machine_cost',      oi.raw_machine_cost::FLOAT,
+                'raw_labor_cost',        oi.raw_labor_cost::FLOAT,
+                'raw_fixed_items_cost',  oi.raw_fixed_items_cost::FLOAT,
+                'raw_unit_cogs',         oi.raw_unit_cogs::FLOAT,
+                'total_item_price',      oi.total_item_price::FLOAT
+              )
+            ) FILTER (WHERE oi.id IS NOT NULL), '[]'
+          ) as items
+        `)
+      ])
+      .where('o.id', id)
+      .groupBy('o.id');
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng.' });
+    }
+
+    // Compute totals from aggregated items (mirrors view_orders_summary logic)
+    const items: any[] = order.items ?? [];
+    const total_raw_cogs = items.reduce(
+      (sum: number, item: any) => sum + (item.raw_unit_cogs * item.quantity), 0
+    );
+    const total_final_invoice_price = items.reduce(
+      (sum: number, item: any) => sum + item.total_item_price, 0
+    );
+
+    res.json({
+      success: true,
+      data: { ...order, total_raw_cogs, total_final_invoice_price },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // [POST] Create a new order with snapshots (Ironclad Transaction)
+// ─────────────────────────────────────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // 1. Validate the request body structure before starting the transaction (Fail-fast & Save DB Pool)
@@ -130,6 +281,57 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
       await trx.rollback();
       throw error;
     }
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// [PATCH] Update order status (State Machine validation + Ironclad Lock support)
+// ─────────────────────────────────────────────────────────────────────────────
+router.patch('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Validate payload
+    const { status: newStatus, is_loss_counted } = patchOrderSchema.parse(req.body);
+
+    // 2. Fetch current order state
+    const currentOrder = await db('orders').where({ id }).first();
+    if (!currentOrder) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy đơn hàng cần cập nhật.' });
+    }
+
+    // 3. Enforce Ironclad Lock — reject mutations on permanently locked orders
+    if (currentOrder.status === 'cancelled' && currentOrder.is_loss_counted === true) {
+      return res.status(409).json({
+        success: false,
+        message: 'Vi phạm luật vận hành xưởng: Đơn hàng này đã bị khóa cứng do hủy và tính hao hụt xưởng. Không thể chỉnh sửa!',
+      });
+    }
+
+    // 4. Enforce State Machine transitions
+    const validNextStates = VALID_NEXT_STATES[currentOrder.status] ?? [];
+    if (!validNextStates.includes(newStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Không thể chuyển đơn hàng từ trạng thái "${currentOrder.status}" sang "${newStatus}".`,
+      });
+    }
+
+    // 5. Build update payload
+    const updatePayload: Record<string, unknown> = { status: newStatus };
+    if (newStatus === 'cancelled') {
+      updatePayload.is_loss_counted = is_loss_counted ?? false;
+    }
+
+    // 6. Perform update (DB Trigger enforce_order_lock is the ultimate guard)
+    const [updatedOrder] = await db('orders')
+      .where({ id })
+      .update(updatePayload)
+      .returning(['id', 'customer_name', 'customer_contact', 'status', 'is_loss_counted', 'calculation_version', 'created_at', 'updated_at']);
+
+    res.json({ success: true, data: updatedOrder });
   } catch (error) {
     next(error);
   }

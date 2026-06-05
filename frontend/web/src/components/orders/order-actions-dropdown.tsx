@@ -1,6 +1,6 @@
 'use client'
 
-import { MoreHorizontal, FileText, Eye, ArrowRight } from 'lucide-react'
+import { MoreHorizontal, FileText, Eye, ArrowRight, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -15,15 +15,16 @@ import {
 import {
   STATUS_CONFIG,
   VALID_NEXT_STATES,
-  type Order,
+  isOrderLocked,
   type OrderStatus,
 } from '@/lib/orders'
+import type { ApiOrder } from '@/core/api/client'
 
 interface OrderActionsDropdownProps {
-  order: Order
+  order: ApiOrder
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void
-  onViewDetails: (order: Order) => void
-  onExportInvoice: (order: Order) => void
+  onViewDetails: (order: ApiOrder) => void
+  onExportInvoice: (order: ApiOrder) => void
 }
 
 export function OrderActionsDropdown({
@@ -32,7 +33,8 @@ export function OrderActionsDropdown({
   onViewDetails,
   onExportInvoice,
 }: OrderActionsDropdownProps) {
-  const nextStates = VALID_NEXT_STATES[order.status]
+  const locked = isOrderLocked(order)
+  const nextStates = locked ? [] : (VALID_NEXT_STATES[order.status] ?? [])
   const hasNextStates = nextStates.length > 0
 
   return (
@@ -49,8 +51,20 @@ export function OrderActionsDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-48 bg-popover border-border text-popover-foreground"
+        className="w-52 bg-popover border-border text-popover-foreground"
       >
+        {/* Locked indicator — shown instead of state-change options */}
+        {locked && (
+          <>
+            <div className="flex items-center gap-2 px-3 py-2 text-xs text-rose-400">
+              <Lock className="h-3.5 w-3.5 shrink-0" />
+              <span>Đơn hàng đã bị khóa cứng</span>
+            </div>
+            <DropdownMenuSeparator className="bg-border" />
+          </>
+        )}
+
+        {/* Status transition sub-menu — hidden when locked */}
         {hasNextStates && (
           <>
             <DropdownMenuSub>

@@ -4,7 +4,7 @@
 #
 # Mục đích: Hot-reload code, verbose logs, không resource limits
 
-version: '3.9'
+
 
 services:
   # Database: Thêm tools debug
@@ -39,7 +39,7 @@ services:
     deploy:
       resources: {}
     # Command dev (watch mode)
-    command: npm run dev
+    command: pnpm run dev
 
   # Frontend: Hot-reload tương tự
   frontend:
@@ -61,7 +61,7 @@ services:
     deploy:
       resources: {}
     # Fast refresh
-    command: npm run dev
+    command: pnpm run dev
 
   # Bỏ Nginx khi dev (không cần reverse proxy)
   nginx:

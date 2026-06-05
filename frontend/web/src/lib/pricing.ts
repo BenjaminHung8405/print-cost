@@ -1,166 +1,170 @@
 import Big from 'big.js';
+import type { ApiProduct, ApiOperationalConfigs } from '@/core/api/client';
 
-// ===============================
-// SEED DATA (matching DB Schema V4)
-// TODO: Replace these constants with API calls when backend endpoints are ready.
-// GET /api/materials   → MATERIALS
-// GET /api/templates   → PRODUCT_TEMPLATES
-// GET /api/config      → MACHINE_DEPRECIATION_PER_HOUR, LABOR_COST_PER_MINUTE, DEFAULT_PACKAGING_COST
-// ===============================
+// Configure Big.js rounding globally: ROUND_HALF_UP (mode 1) per DB Schema V4
+Big.RM = 1;
 
-export const MATERIALS: Record<string, {
-  price_per_kg: number;
-  fail_rate: number;
-  default_margin: number;
-}> = {
-  PLA:  { price_per_kg: 250000, fail_rate: 1.10, default_margin: 0.40 },
-  PETG: { price_per_kg: 203000, fail_rate: 1.00, default_margin: 0.30 },
-  ABS:  { price_per_kg: 280000, fail_rate: 1.15, default_margin: 0.35 },
-  TPU:  { price_per_kg: 350000, fail_rate: 1.05, default_margin: 0.45 },
-};
+// ─────────────────────────────────────────────────────────────────────────────
+// Re-export ApiProduct as the canonical ProductTemplate shape used across UI
+// ─────────────────────────────────────────────────────────────────────────────
+export type { ApiProduct as ProductTemplate } from '@/core/api/client';
 
-export const MACHINE_DEPRECIATION_PER_HOUR = 5000; // VND/hour
-export const LABOR_COST_PER_MINUTE = 500;          // VND/minute
-export const DEFAULT_PACKAGING_COST = 2400;        // VND per item
-
-export interface ProductTemplate {
-  id: string;
-  name: string;
-  material: keyof typeof MATERIALS;
-  weightGram: number;
-  printTimeSeconds: number;
-  laborMinutes: number;
-  marginOverride: number | null;
-}
-
-export const PRODUCT_TEMPLATES: ProductTemplate[] = [
-  { id: "1", name: "Keycap (PLA)",           material: "PLA",  weightGram: 16.88, printTimeSeconds: 5700,  laborMinutes: 0,  marginOverride: null },
-  { id: "2", name: "Phone Case (PETG)",      material: "PETG", weightGram: 40.0,  printTimeSeconds: 7200,  laborMinutes: 10, marginOverride: null },
-  { id: "3", name: "Miniature Figure (PLA)", material: "PLA",  weightGram: 25.0,  printTimeSeconds: 10800, laborMinutes: 15, marginOverride: null },
-  { id: "4", name: "Artistic Bust (ABS)",    material: "ABS",  weightGram: 150.0, printTimeSeconds: 28800, laborMinutes: 30, marginOverride: 0.50 },
-  { id: "5", name: "Custom Project (TPU)",   material: "TPU",  weightGram: 100.0, printTimeSeconds: 21600, laborMinutes: 20, marginOverride: null },
-];
-
-// ===============================
+// ─────────────────────────────────────────────────────────────────────────────
 // CURRENCY FORMATTING
-// ===============================
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Format Vietnamese Dong with thousands separator as period.
+ * Format Vietnamese Dong with thousands separator.
  * Example: 24900 → "24.900 đ"
  */
 export function formatVND(value: number): string {
   return new Intl.NumberFormat('vi-VN').format(Math.round(value)) + ' đ';
 }
 
-// ===============================
+// ─────────────────────────────────────────────────────────────────────────────
 // TIME FORMATTING
-// ===============================
+// ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Convert seconds to hours and minutes string.
+ * Convert seconds to human-readable hours/minutes string.
  * Example: 5700 → "1h 35m"
  */
 export function formatTime(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
-
   if (hours === 0) return `${minutes}m`;
   if (minutes === 0) return `${hours}h`;
   return `${hours}h ${minutes}m`;
 }
 
 /**
- * Convert hours and minutes to total seconds.
+ * Convert hours + minutes to total seconds for API payloads.
  */
 export function toSeconds(hours: number, minutes: number): number {
-  return (hours * 3600) + (minutes * 60);
+  return hours * 3600 + minutes * 60;
 }
 
-// ===============================
-// PRICING CALCULATIONS (using big.js for precision)
-// All intermediate calculations use Big to avoid floating-point drift.
-// Final price is rounded to nearest 100 VND (ROUND_HALF_UP) per DB Schema V4 spec.
-// ===============================
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUNDING — mirrors DB function round_to_100 (Round Half-Up to nearest 100 VND)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Round a Big value to the nearest 100 VND (ROUND_HALF_UP).
+ * Throws if the value is negative (mirrors DB constraint).
+ */
+export function roundTo100(rawValue: Big): number {
+  if (rawValue.lt(0)) {
+    throw new Error('LỖI HỆ THỐNG: Giá trị tài chính không được phép âm');
+  }
+  // Big.RM = 1 (ROUND_HALF_UP) is set globally
+  return rawValue.div(100).round(0).times(100).toNumber();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRICING CALCULATIONS
+// All intermediate calculations use big.js to avoid floating-point drift.
+// Only the final suggested price (or custom override) is rounded to 100 VND.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface CostBreakdown {
   rawMaterialCost: number;
   rawMachineCost: number;
   rawLaborCost: number;
-  rawPackagingCost: number;
+  rawFixedItemsCost: number; // real accumulated fixed items cost from DB
   rawCOGS: number;
   margin: number;
   rawRetailPrice: number;
   finalRetailPrice: number;
 }
 
-export function calculateItemCosts(
-  product: ProductTemplate,
+export interface MaterialConfig {
+  price_per_kg: number;
+  fail_rate: number;
+  default_margin: number;
+}
+
+/**
+ * Primary calculation function.
+ * Pass the resolved material config alongside the product and operational configs.
+ *
+ * @param product       Full ApiProduct returned from GET /api/products
+ * @param materialConfig Resolved material properties (price, fail rate, margin)
+ * @param configs       Operational configs from GET /api/operational-configs
+ * @param overridePrintTimeSeconds  Optional print time override (seconds)
+ * @param overridePrice Optional explicit price override (will be rounded to 100 VND)
+ */
+export function calculateItemCostsWithMaterial(
+  product: ApiProduct,
+  materialConfig: MaterialConfig,
+  configs: ApiOperationalConfigs,
   overridePrintTimeSeconds?: number,
   overridePrice?: number
 ): CostBreakdown {
-  const materialConfig = MATERIALS[product.material];
-  const printTime = overridePrintTimeSeconds ?? product.printTimeSeconds;
+  const printTime = overridePrintTimeSeconds ?? product.print_time_seconds;
 
-  // Use big.js for all intermediate calculations
-  const weightGram = new Big(product.weightGram);
-  const pricePerKg = new Big(materialConfig.price_per_kg);
-  const failRate = new Big(materialConfig.fail_rate);
-  const printSeconds = new Big(printTime);
-  const laborMinutes = new Big(product.laborMinutes);
-  const machineRate = new Big(MACHINE_DEPRECIATION_PER_HOUR);
-  const laborRate = new Big(LABOR_COST_PER_MINUTE);
-  const packagingCost = new Big(DEFAULT_PACKAGING_COST);
+  const weightGram  = new Big(product.weight_gram);
+  const pricePerKg  = new Big(materialConfig.price_per_kg);
+  const failRate    = new Big(materialConfig.fail_rate);
+  const printSecs   = new Big(printTime);
+  const laborMins   = new Big(product.labor_time_minutes);
+  const machineRate = new Big(configs.machine_depreciation_per_hour);
+  const laborRate   = new Big(configs.labor_cost_per_minute);
 
-  // Raw Material Cost = weight_g × (price_per_kg / 1000) × fail_rate
-  const rawMaterialCost = weightGram
-    .times(pricePerKg.div(1000))
-    .times(failRate);
+  // Formula 1: Raw Material Cost = weight_g × (price_per_kg / 1000) × fail_rate
+  const rawMaterialCost = weightGram.times(pricePerKg.div(1000)).times(failRate);
 
-  // Raw Machine Cost = (print_time_seconds / 3600) × 5000
-  const rawMachineCost = printSeconds
-    .div(3600)
-    .times(machineRate);
+  // Formula 2: Raw Machine Cost = (print_time_seconds / 3600) × depreciation_per_hour
+  const rawMachineCost = printSecs.div(3600).times(machineRate);
 
-  // Raw Labor Cost = labor_minutes × 500
-  const rawLaborCost = laborMinutes.times(laborRate);
+  // Formula 3: Raw Labor Cost = labor_time_minutes × labor_cost_per_minute
+  const rawLaborCost = laborMins.times(laborRate);
 
-  // Raw COGS = rawMaterialCost + rawMachineCost + rawLaborCost + 2400
+  // Formula 4: Raw Fixed Items Cost = Σ (fixed_item.cost × fixed_item.quantity)
+  // Uses ACTUAL costs from DB (not a hardcoded 2400 VND constant)
+  const rawFixedItemsCost = product.fixed_items.reduce((acc, fi) => {
+    return acc.plus(new Big(fi.cost).times(fi.quantity));
+  }, new Big(0));
+
+  // Formula 5: Raw Unit COGS
   const rawCOGS = rawMaterialCost
     .plus(rawMachineCost)
     .plus(rawLaborCost)
-    .plus(packagingCost);
+    .plus(rawFixedItemsCost);
 
-  // Margin = product.marginOverride ?? material.default_margin
-  const margin = product.marginOverride ?? materialConfig.default_margin;
+  // Formula 6: Margin (product override takes precedence over material default)
+  const margin =
+    product.margin_override !== null && product.margin_override !== undefined
+      ? product.margin_override
+      : materialConfig.default_margin;
   const marginBig = new Big(margin);
 
-  // Raw Retail Price = rawCOGS / (1 - margin)
+  // Formula 7: Raw Retail Price = rawCOGS / (1 - margin)
   const rawRetailPrice = rawCOGS.div(new Big(1).minus(marginBig));
 
-  // Round to nearest 100 VND (ROUND_HALF_UP)
-  const finalRetailPrice = overridePrice
-    ? overridePrice
-    : Math.round(rawRetailPrice.toNumber() / 100) * 100;
+  // Formula 8: Final Retail Price — round to 100 VND (ROUND_HALF_UP) unless overridden
+  const finalRetailPrice = overridePrice !== undefined && overridePrice !== null
+    ? roundTo100(new Big(overridePrice))
+    : roundTo100(rawRetailPrice);
 
   return {
-    rawMaterialCost: rawMaterialCost.toNumber(),
-    rawMachineCost: rawMachineCost.toNumber(),
-    rawLaborCost: rawLaborCost.toNumber(),
-    rawPackagingCost: packagingCost.toNumber(),
-    rawCOGS: rawCOGS.toNumber(),
+    rawMaterialCost:   rawMaterialCost.toNumber(),
+    rawMachineCost:    rawMachineCost.toNumber(),
+    rawLaborCost:      rawLaborCost.toNumber(),
+    rawFixedItemsCost: rawFixedItemsCost.toNumber(),
+    rawCOGS:           rawCOGS.toNumber(),
     margin,
-    rawRetailPrice: rawRetailPrice.toNumber(),
+    rawRetailPrice:    rawRetailPrice.toNumber(),
     finalRetailPrice,
   };
 }
 
-/**
- * Calculate total costs for multiple items with quantities.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// ORDER-LEVEL TOTALS
+// ─────────────────────────────────────────────────────────────────────────────
+
 export interface OrderItem {
   id: string;
-  productId: string;
+  productId: string; // string because it comes from Select component value
   quantity: number;
   overridePrintTimeSeconds?: number;
   overridePrice?: number;
@@ -170,49 +174,60 @@ export interface OrderTotals {
   totalMaterialCost: number;
   totalMachineCost: number;
   totalLaborCost: number;
-  totalPackagingCost: number;
+  totalFixedItemsCost: number;
   totalCOGS: number;
   totalPrice: number;
   totalPrintTimeSeconds: number;
 }
 
-export function calculateOrderTotals(items: OrderItem[]): OrderTotals {
-  let totalMaterialCost = new Big(0);
-  let totalMachineCost = new Big(0);
-  let totalLaborCost = new Big(0);
-  let totalPackagingCost = new Big(0);
-  let totalCOGS = new Big(0);
-  let totalPrice = new Big(0);
+export function calculateOrderTotals(
+  items: OrderItem[],
+  products: ApiProduct[],
+  materialMap: Record<number, MaterialConfig>,
+  configs: ApiOperationalConfigs
+): OrderTotals {
+  let totalMaterialCost    = new Big(0);
+  let totalMachineCost     = new Big(0);
+  let totalLaborCost       = new Big(0);
+  let totalFixedItemsCost  = new Big(0);
+  let totalCOGS            = new Big(0);
+  let totalPrice           = new Big(0);
   let totalPrintTimeSeconds = 0;
 
   for (const item of items) {
-    const product = PRODUCT_TEMPLATES.find(p => p.id === item.productId);
+    const product = products.find(p => String(p.id) === item.productId);
     if (!product) continue;
 
-    const costs = calculateItemCosts(
+    const matConfig = materialMap[product.material_id];
+    if (!matConfig) continue;
+
+    const costs = calculateItemCostsWithMaterial(
       product,
+      matConfig,
+      configs,
       item.overridePrintTimeSeconds,
       item.overridePrice
     );
-    const qty = new Big(item.quantity);
-    const printTime = item.overridePrintTimeSeconds ?? product.printTimeSeconds;
 
-    totalMaterialCost = totalMaterialCost.plus(new Big(costs.rawMaterialCost).times(qty));
-    totalMachineCost = totalMachineCost.plus(new Big(costs.rawMachineCost).times(qty));
-    totalLaborCost = totalLaborCost.plus(new Big(costs.rawLaborCost).times(qty));
-    totalPackagingCost = totalPackagingCost.plus(new Big(costs.rawPackagingCost).times(qty));
-    totalCOGS = totalCOGS.plus(new Big(costs.rawCOGS).times(qty));
-    totalPrice = totalPrice.plus(new Big(costs.finalRetailPrice).times(qty));
+    const qty = new Big(item.quantity);
+    const printTime = item.overridePrintTimeSeconds ?? product.print_time_seconds;
+
+    totalMaterialCost   = totalMaterialCost.plus(new Big(costs.rawMaterialCost).times(qty));
+    totalMachineCost    = totalMachineCost.plus(new Big(costs.rawMachineCost).times(qty));
+    totalLaborCost      = totalLaborCost.plus(new Big(costs.rawLaborCost).times(qty));
+    totalFixedItemsCost = totalFixedItemsCost.plus(new Big(costs.rawFixedItemsCost).times(qty));
+    totalCOGS           = totalCOGS.plus(new Big(costs.rawCOGS).times(qty));
+    totalPrice          = totalPrice.plus(new Big(costs.finalRetailPrice).times(qty));
     totalPrintTimeSeconds += printTime * item.quantity;
   }
 
   return {
-    totalMaterialCost: totalMaterialCost.toNumber(),
-    totalMachineCost: totalMachineCost.toNumber(),
-    totalLaborCost: totalLaborCost.toNumber(),
-    totalPackagingCost: totalPackagingCost.toNumber(),
-    totalCOGS: totalCOGS.toNumber(),
-    totalPrice: totalPrice.toNumber(),
+    totalMaterialCost:    totalMaterialCost.toNumber(),
+    totalMachineCost:     totalMachineCost.toNumber(),
+    totalLaborCost:       totalLaborCost.toNumber(),
+    totalFixedItemsCost:  totalFixedItemsCost.toNumber(),
+    totalCOGS:            totalCOGS.toNumber(),
+    totalPrice:           totalPrice.toNumber(),
     totalPrintTimeSeconds,
   };
 }

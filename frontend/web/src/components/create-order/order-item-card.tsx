@@ -17,13 +17,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import {
-  PRODUCT_TEMPLATES,
-  formatVND,
-  formatTime,
-  calculateItemCosts,
-  type ProductTemplate,
-} from '@/lib/pricing';
+import { formatVND, formatTime } from '@/lib/pricing';
+import type { ApiProduct } from '@/core/api/client';
 
 interface OrderItemCardProps {
   index: number;
@@ -34,6 +29,10 @@ interface OrderItemCardProps {
   overrideMinutes?: number;
   overridePrice?: number;
   showDelete: boolean;
+  /** Live list of product templates loaded from API (no mock constants) */
+  products: ApiProduct[];
+  /** Callback to compute the suggested price for a given product */
+  getSuggestedPrice: (product: ApiProduct) => number;
   onProductChange: (productId: string) => void;
   onQuantityChange: (quantity: number) => void;
   onOverrideTimeChange: (hours?: number, minutes?: number) => void;
@@ -50,6 +49,8 @@ export function OrderItemCard({
   overrideMinutes,
   overridePrice,
   showDelete,
+  products,
+  getSuggestedPrice,
   onProductChange,
   onQuantityChange,
   onOverrideTimeChange,
@@ -58,20 +59,12 @@ export function OrderItemCard({
 }: OrderItemCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const selectedProduct = PRODUCT_TEMPLATES.find(p => p.id === productId);
+  const selectedProduct = products.find(p => String(p.id) === productId);
 
-  // Calculate suggested price for the selected product
-  const getSuggestedPrice = (product: ProductTemplate) => {
-    const costs = calculateItemCosts(product);
-    return costs.finalRetailPrice;
-  };
-
-  // Calculate default time display
-  const getDefaultTime = (product: ProductTemplate) => {
-    const hours = Math.floor(product.printTimeSeconds / 3600);
-    const minutes = Math.floor((product.printTimeSeconds % 3600) / 60);
-    return { hours, minutes };
-  };
+  const getDefaultTime = (product: ApiProduct) => ({
+    hours: Math.floor(product.print_time_seconds / 3600),
+    minutes: Math.floor((product.print_time_seconds % 3600) / 60),
+  });
 
   return (
     <div className="rounded-xl border border-border bg-muted/30 p-4 transition-colors duration-150">
@@ -95,9 +88,9 @@ export function OrderItemCard({
 
       {/* Main Row */}
       <div className="flex flex-col sm:flex-row gap-3">
-        {/* Product Select */}
+        {/* Product Select — dynamically populated from API */}
         <div className="flex-grow sm:w-[60%]">
-          <Select value={productId || undefined} onValueChange={(val) => onProductChange(val as string)}>
+          <Select value={productId || undefined} onValueChange={val => val && onProductChange(val)}>
             <SelectTrigger
               id={`product-${itemId}`}
               className="w-full h-11 bg-background border-border text-foreground focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -107,10 +100,10 @@ export function OrderItemCard({
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="bg-card border-border">
-              {PRODUCT_TEMPLATES.map((product) => (
+              {products.map(product => (
                 <SelectItem
                   key={product.id}
-                  value={product.id}
+                  value={String(product.id)}
                   className="text-foreground hover:bg-muted focus:bg-muted"
                 >
                   <span className="flex justify-between w-full gap-4">
@@ -141,7 +134,7 @@ export function OrderItemCard({
             <input
               type="number"
               value={quantity}
-              onChange={(e) => {
+              onChange={e => {
                 const val = parseInt(e.target.value) || 1;
                 onQuantityChange(Math.max(1, val));
               }}
@@ -164,15 +157,9 @@ export function OrderItemCard({
 
       {/* Collapsible Override Section */}
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded} className="mt-4">
-        <CollapsibleTrigger
-          className="flex items-center justify-center w-full h-9 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 gap-2 transition-colors duration-150 rounded-md"
-        >
+        <CollapsibleTrigger className="flex items-center justify-center w-full h-9 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 gap-2 transition-colors duration-150 rounded-md">
           Tùy chỉnh nâng cao
-          {isExpanded ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
+          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="pt-4 space-y-4">
@@ -189,16 +176,14 @@ export function OrderItemCard({
                     type="number"
                     min={0}
                     value={overrideHours ?? ''}
-                    onChange={(e) => {
+                    onChange={e => {
                       const hours = e.target.value === '' ? undefined : parseInt(e.target.value);
                       onOverrideTimeChange(hours, overrideMinutes);
                     }}
                     placeholder={selectedProduct ? String(getDefaultTime(selectedProduct).hours) : '0'}
                     className="pr-8 h-10 bg-background border-border text-foreground font-mono text-center"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">
-                    h
-                  </span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">h</span>
                 </div>
                 <div className="relative w-20">
                   <Input
@@ -207,21 +192,19 @@ export function OrderItemCard({
                     min={0}
                     max={59}
                     value={overrideMinutes ?? ''}
-                    onChange={(e) => {
+                    onChange={e => {
                       const minutes = e.target.value === '' ? undefined : parseInt(e.target.value);
                       onOverrideTimeChange(overrideHours, minutes);
                     }}
                     placeholder={selectedProduct ? String(getDefaultTime(selectedProduct).minutes) : '0'}
                     className="pr-8 h-10 bg-background border-border text-foreground font-mono text-center"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">
-                    m
-                  </span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">m</span>
                 </div>
               </div>
               {selectedProduct && (
                 <p className="text-xs text-muted-foreground italic">
-                  Mặc định: {formatTime(selectedProduct.printTimeSeconds)}
+                  Mặc định: {formatTime(selectedProduct.print_time_seconds)}
                 </p>
               )}
             </div>
@@ -242,16 +225,18 @@ export function OrderItemCard({
                   type="number"
                   min={0}
                   value={overridePrice ?? ''}
-                  onChange={(e) => {
+                  onChange={e => {
                     const price = e.target.value === '' ? undefined : parseInt(e.target.value);
                     onOverridePriceChange(price);
                   }}
-                  placeholder={selectedProduct ? formatVND(getSuggestedPrice(selectedProduct)).replace(' đ', '') : '0'}
+                  placeholder={
+                    selectedProduct
+                      ? formatVND(getSuggestedPrice(selectedProduct)).replace(' đ', '')
+                      : '0'
+                  }
                   className={`pr-10 h-10 bg-background border-border text-foreground font-mono ${!overridePrice ? 'pl-20' : ''}`}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">
-                  đ
-                </span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">đ</span>
               </div>
             </div>
           </div>

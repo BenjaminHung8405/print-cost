@@ -1,46 +1,23 @@
-// Order status type mapping for the state machine
-export type OrderStatus =
-  | 'draft'
-  | 'printing'
-  | 'completed'
-  | 'shipping'
-  | 'delivered'
-  | 'cancelled'
+/**
+ * Frontend Order types, state machine config, and display helpers.
+ * Types mirror exactly the shapes returned by the Backend API client (core/api/client.ts).
+ */
 
-export interface OrderItem {
-  id: number
-  productName: string
-  materialName: string
-  quantity: number
-  finalUnitPrice: number
-  rawMaterialCost: number
-  rawMachineCost: number
-  rawLaborCost: number
-  rawFixedItemsCost: number
-  rawUnitCogs: number
-}
+// Re-export from API client so the UI can import from one place
+export type { OrderStatus, ApiOrder as Order, ApiOrderItem as OrderItem } from '@/core/api/client';
 
-export interface Order {
-  id: number
-  code: string
-  customerName: string
-  customerContact: string | null
-  status: OrderStatus
-  isLossCounted: boolean
-  createdAt: Date
-  updatedAt: Date
-  items: OrderItem[]
-  totalFinalInvoicePrice: number
-  totalRawCogs: number
-}
+import type { ApiOrder, OrderStatus } from '@/core/api/client';
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Status display configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const STATUS_CONFIG: Record<
   OrderStatus,
   {
-    label: string
-    className: string
-    animate?: boolean
+    label: string;
+    className: string;
+    animate?: boolean;
   }
 > = {
   draft: {
@@ -49,8 +26,7 @@ export const STATUS_CONFIG: Record<
   },
   printing: {
     label: 'Đang in',
-    className:
-      'bg-blue-950 text-blue-400 border border-blue-800 animate-pulse',
+    className: 'bg-blue-950 text-blue-400 border border-blue-800 animate-pulse',
     animate: true,
   },
   completed: {
@@ -69,44 +45,67 @@ export const STATUS_CONFIG: Record<
     label: 'Đã hủy',
     className: 'bg-rose-950 text-rose-400 border border-rose-800',
   },
-}
+};
 
-// State machine: valid next states for each status
+// ─────────────────────────────────────────────────────────────────────────────
+// State Machine: valid next states for each status
+// ─────────────────────────────────────────────────────────────────────────────
+
 export const VALID_NEXT_STATES: Record<OrderStatus, OrderStatus[]> = {
-  draft: ['printing', 'cancelled'],
-  printing: ['completed', 'cancelled'],
+  draft:     ['printing', 'cancelled'],
+  printing:  ['completed', 'cancelled'],
   completed: ['shipping', 'cancelled'],
-  shipping: ['delivered', 'cancelled'],
-  delivered: [], // terminal state
-  cancelled: [], // terminal state
+  shipping:  ['delivered', 'cancelled'],
+  delivered: [],
+  cancelled: [],
+};
+
+/**
+ * Returns true when an order is permanently locked (cancelled + loss counted).
+ * Used throughout the UI to hide/disable edit controls.
+ */
+export function isOrderLocked(order: Pick<ApiOrder, 'status' | 'is_loss_counted'>): boolean {
+  return order.status === 'cancelled' && order.is_loss_counted === true;
 }
 
-// Format Vietnamese Dong currency
+// ─────────────────────────────────────────────────────────────────────────────
+// Formatting helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Format Vietnamese Dong. Example: 50000 → "50.000 đ" */
 export function formatVND(amount: number): string {
   return (
     new Intl.NumberFormat('vi-VN', {
       style: 'decimal',
       maximumFractionDigits: 0,
     }).format(Math.round(amount)) + ' đ'
-  )
+  );
 }
 
-// Format datetime in Vietnamese format
-export function formatDateTime(date: Date): string {
-  const hours = date.getHours().toString().padStart(2, '0')
-  const minutes = date.getMinutes().toString().padStart(2, '0')
-  const day = date.getDate().toString().padStart(2, '0')
-  const month = (date.getMonth() + 1).toString().padStart(2, '0')
-  const year = date.getFullYear()
-  return `${hours}:${minutes} - ${day}/${month}/${year}`
+/** Format datetime in Vietnamese HH:MM - DD/MM/YYYY format */
+export function formatDateTime(dateInput: Date | string): string {
+  const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+  const hours   = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const day     = date.getDate().toString().padStart(2, '0');
+  const month   = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year    = date.getFullYear();
+  return `${hours}:${minutes} - ${day}/${month}/${year}`;
 }
 
-// Format order items summary
-export function formatItemsSummary(items: OrderItem[]): string {
+/** Summarise order items for the table cell tooltip */
+export function formatItemsSummary(
+  items: Array<{ snapshot_product_name: string; snapshot_material_name: string; quantity: number }>
+): string {
   return items
-    .map(
-      (item) =>
-        `${item.quantity}x ${item.productName} (${item.materialName})`
-    )
-    .join(', ')
+    .map(item => `${item.quantity}x ${item.snapshot_product_name} (${item.snapshot_material_name})`)
+    .join(', ');
+}
+
+/**
+ * Generate the order code display string from a numeric ID.
+ * Matches the format used in the mock data: OD-XXXX
+ */
+export function formatOrderCode(id: number): string {
+  return `OD-${String(id).padStart(4, '0')}`;
 }
