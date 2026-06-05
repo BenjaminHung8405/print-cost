@@ -207,3 +207,34 @@ dependencies:
 
 Use `GoogleFonts` helper functions to dynamically fetch or fallback to cached `JetBrains Mono` and `IBM Plex Sans` typography files.
 
+---
+
+## 📝 UI/UX Pre-Delivery Checklist
+
+Before committing or releasing new UI components, pages, or features, verify them against this checklist to ensure visual and interactive quality.
+
+### 1. Visual Quality
+- [ ] **No Emoji Icons**: All UI controls must use SVG icons (Lucide/Heroicons for Web; Material Icons or Lucide Flutter for Mobile). No raw emojis.
+- [ ] **Consistent Icon Sizing**: Standard dimensions for icons (typically 20x20px or 24x24px).
+- [ ] **Stable Hover States**: Hovering must not cause visual layout shifts. Do not scale elements in a way that affects surrounding margins or padding.
+
+### 2. Interaction & Motion
+- [ ] **Cursor Pointer**: Ensure all clickable elements display `cursor: pointer` on Web.
+- [ ] **Hover & Tap Feedback**: Interactive components must provide instant visual feedback on hover/tap (color shift, outline, shadow, or slight opacity change).
+- [ ] **Smooth Transitions**: State transitions should be animated smoothly using a `150ms` to `300ms` ease transition.
+- [ ] **Loading States**: Asynchronous operations (such as calculating suggested price, adding order items, loading materials) must show a loading spinner or skeleton and disable the corresponding action buttons.
+
+### 3. Contrast & Theme Integrity
+- [ ] **OLED High Contrast**: Ensure text contrast conforms to WCAG standards. Text on backgrounds must have a minimum contrast ratio of 4.5:1 (use `--color-text` `#F1F5F9` on `--color-bg` `#0F172A`).
+- [ ] **Border Visibility**: Card outlines and field boundaries must remain visible in OLED layouts.
+
+### 4. Layout & Responsiveness
+- [ ] **Spacing Consistency**: All page elements must adhere to the 4px grid system spacing variables (`--spacing-sm`, `--spacing-md`, etc.).
+- [ ] **Responsive Breakpoints**: Test layouts across phone (`375px`), tablet (`768px`), and desktop (`1024px`, `1440px`).
+- [ ] **No Horizontal Scroll**: Page grids and tables must not cause horizontal scrolling on mobile viewports. Use responsive table horizontal scrolling wrappers where necessary.
+
+### 5. Accessibility (WCAG)
+- [ ] **Form Labels**: Every input field must have a corresponding `<label>` tag with a matching `for` / `htmlFor` attribute.
+- [ ] **Focus Indicator**: Keyboard navigation must display a visible focus ring outline on active elements.
+
+
