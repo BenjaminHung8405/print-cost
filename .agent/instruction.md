@@ -1,6 +1,6 @@
 # 🤖 PrintCost - Agent Instructions & Coding Standards
 
-This document serves as the **source of truth** for all development, refactoring, and AI-assisted agent tasks in the `PrintCost` repository. All generated code, database migrations, API endpoints, and user interface components must strictly adhere to the guidelines and specs documented below.
+This document serves as the **source of truth** for all development, refactoring, and AI-assisted agent tasks in the `PrintCost` repository. All generated code, database migrations, API endpoints, and user interface components must strictly adhere to the guidelines and specifications documented below.
 
 ---
 
@@ -12,7 +12,7 @@ PrintCost is a **Self-hosted 3D Printing Cost Management System** built with a m
 ```mermaid
 graph TD
     Client[Client Devices: Desktop, Tablet, Mobile] -->|HTTP/HTTPS Port 80/443| Nginx[Nginx Reverse Proxy]
-    Nginx -->|Route: /api/*| Backend[Backend API: Node.js/Express/Nest]
+    Nginx -->|Route: /api/*| Backend[Backend API: Node.js/Express]
     Nginx -->|Route: /*| Frontend[Frontend UI: Next.js]
     Backend -->|Internal Port 5432| DB[(PostgreSQL 16 Alpine)]
 ```
@@ -21,7 +21,7 @@ graph TD
 - **Resource Constraints (Limits)**:
   - **nginx**: Alpine-based, 0.5 CPU, 256MB RAM. Exposed on host ports `80`/`443`.
   - **frontend**: Next.js, 2.0 CPU, 2GB RAM. Internal port `3000`.
-  - **backend**: Node.js API, 4.0 CPU, 4GB RAM. Internal port `8080`.
+  - **backend**: Node.js/Express API, 4.0 CPU, 4GB RAM. Internal port `8080`.
   - **db**: PostgreSQL 16 Alpine, 2.0 CPU, 2GB RAM. Internal port `5432` (Internal only, not exposed on host network).
 - **Docker Networks**: Secure internal network. Only Nginx is accessible from the host/external network.
 - **File Uploads**: Do not store image files as Base64 or Binary Large Objects (BLOB) in the database. Images must be saved as physical files in a mapped volume (`./uploads` mapping to Nginx `/uploads`) and reference their file paths/URLs in the database tables.
@@ -93,20 +93,187 @@ $$\text{Raw Suggested Price} = \frac{\text{Raw Unit COGS}}{1 - \text{Margin}}$$
 ### 6. Final Suggested Price (Rounded)
 $$\text{Final Suggested Price} = \text{round\_to\_100}(\text{Raw Suggested Price})$$
 
-*Note: Application codes must never run intermediate rounding on raw cost components. Only the final suggested price or custom chốt bán (`final_unit_price`) is subject to rounding rules.*
+*Note: Application code must never run intermediate rounding on raw cost components. Only the final suggested price or custom unit price (`final_unit_price`) is subject to rounding rules.*
 
 ---
 
-## 5. Development Guidelines
+## 5. Express Backend Coding Standards
 
-### Backend (Node.js API)
-- **Tech Stack**: Node.js (Express, Fastify, or NestJS) with TypeScript.
-- **Database Access**: Use typed SQL queries or a lightweight query builder (e.g., Kysely, Knex, or pg-promise) to preserve strict SQL control. Heavy ORMs are discouraged due to complex generated SQL and potential drift from Schema V4.
-- **Data Validation**: Use Zod or class-validator to validate payloads at the endpoint level. Ensure validations match check constraints (e.g. `price_per_kg` > 0).
-- **Error Handling**: Implement custom middleware to capture DB trigger violations (like locked orders or negative financial value issues) and return clean, user-friendly JSON error payloads.
+All backend contributions must adhere to the following implementation standards.
 
-### Frontend (Next.js & Design System)
-- **Tech Stack**: Next.js (App Router preferred), React, TypeScript, Vanilla CSS.
+### 5.1. Financial Precision with `big.js`
+* **ABSOLUTELY DO NOT** use standard arithmetic operators (`+`, `-`, `*`, `/`) or native float types (`number` in JS) for intermediate calculations of currency, costs, or profit margins.
+* All intermediate calculations must use the `big.js` library.
+* Only convert the `Big` data type back to a standard JS `number` at the final output (JSON Response) or when storing to the database (preserving the precision of `NUMERIC` fields in Postgres).
+* Configure the rounding mode to `ROUND_HALF_UP` (mode `1` in Big.js) globally:
+
+```typescript
+import Big from 'big.js';
+Big.RM = 1; // Round mode = 1 (ROUND_HALF_UP)
+```
+
+#### Financial Rounding Function
+The final unit price must be rounded to the nearest **100 VND**:
+
+```typescript
+export function roundTo100(rawValue: Big): number {
+  if (rawValue.lt(0)) {
+    throw new Error('LỖI HỆ THỐNG: Giá trị tài chính không được phép âm');
+  }
+  const divided = rawValue.div(100);
+  const rounded = divided.round(0); // Uses Big.RM = 1
+  return rounded.times(100).toNumber();
+}
+```
+
+---
+
+### 5.2. Database & Knex.js Transactions
+When writing data to multiple parent-child tables (e.g., creating a new order and storing its associated order items), it is **mandatory** to wrap them in a Database Transaction using Knex.
+
+```typescript
+import { db } from '../database/client';
+
+export async function createOrderWithItems(orderData: any, items: any[]) {
+  return await db.transaction(async (trx) => {
+    // 1. Insert parent order
+    const [insertedOrder] = await trx('orders')
+      .insert({
+        customer_name: orderData.customer_name,
+        customer_contact: orderData.customer_contact,
+        status: 'draft',
+      })
+      .returning('*');
+
+    // 2. Prepare items with calculated cost snapshots
+    const itemsToInsert = items.map(item => {
+      return {
+        order_id: insertedOrder.id,
+        product_id: item.product_id,
+        snapshot_product_name: item.name,
+        // ... other snapshot fields
+        final_unit_price: item.final_unit_price,
+        quantity: item.quantity,
+      };
+    });
+
+    // 3. Insert child items
+    await trx('order_items').insert(itemsToInsert);
+    return insertedOrder;
+  });
+}
+```
+
+#### Database Error Handling Middleware
+Capture specific PostgreSQL constraint/trigger violations and return standard JSON responses:
+
+```typescript
+import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
+
+export function errorHandler(err: any, req: Request, res: Response, next: NextFunction) {
+  // 1. Trap Zod Validation Errors
+  if (err instanceof ZodError) {
+    return res.status(400).json({
+      success: false,
+      message: 'Dữ liệu nhập vào không hợp lệ hoặc sai định dạng toán học',
+      errors: err.errors.map(e => ({ field: e.path.join('.'), message: e.message }))
+    });
+  }
+
+  // 2. Trap PostgreSQL Database Violations (Knex Exceptions)
+  if (err.code) {
+    switch (err.code) {
+      case '23505': // Unique key violation
+        return res.status(409).json({ 
+          success: false, 
+          message: 'Dữ liệu này đã tồn tại (Bị trùng tên danh mục).' 
+        });
+      case '23514': // CHECK constraint violation
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Yêu cầu bị từ chối: Vi phạm giới hạn miền giá trị toán học (Số lượng/Giá trị phải lớn hơn 0).' 
+        });
+      case '23503': // Foreign key violation
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Không thể thực hiện thao tác do dữ liệu đang được liên kết trong các Sản phẩm hoặc Đơn hàng khác.' 
+        });
+      case 'P0001': // Custom trigger exception (e.g. Ironclad Lock trigger)
+        return res.status(409).json({ 
+          success: false, 
+          message: `Vi phạm luật vận hành xưởng: ${err.message.replace(/^error:\s*/i, '')}` 
+        });
+    }
+  }
+
+  // 3. Fallback for general server exceptions
+  console.error('🔴 [BACKEND CRITICAL EXCEPTION]:', err);
+  return res.status(500).json({
+    success: false,
+    message: err.message || 'Hệ thống gặp sự cố bất ngờ. Vui lòng kiểm tra log Docker của Mac Mini M4.'
+  });
+}
+```
+
+---
+
+### 5.3. Avoiding Zod Validation Pitfalls (The Coercion Trap)
+In Express, inputs are often parsed as strings. Standard `z.coerce.number()` turns `""` or `null` into `0`, bypassing validation. Use a pre-processing helper instead:
+
+```typescript
+import { z } from 'zod';
+
+// Preprocess empty inputs to null instead of converting them to 0
+export const safeCoerceNumber = z.preprocess((val) => {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'string' && val.trim() === '') return null;
+  return Number(val);
+}, z.number().nullable());
+
+// Example validation schema
+export const createMaterialSchema = z.object({
+  name: z.string().trim().min(1, 'Tên loại nhựa không được để trống'),
+  price_per_kg: safeCoerceNumber.pipe(
+    z.number().positive('Giá nhựa phải lớn hơn 0')
+  ),
+});
+```
+
+---
+
+### 5.4. Integration Testing with Vitest
+When writing automated integration tests, ensure clean, isolated DB states:
+
+```typescript
+import { db } from '../../core/database/client';
+import { beforeAll, beforeEach, afterAll } from 'vitest';
+
+beforeAll(async () => {
+  await db.raw('SELECT 1'); // verify connection
+});
+
+beforeEach(async () => {
+  // Truncate tables and restart IDs
+  await db.raw('TRUNCATE TABLE order_items, orders, product_fixed_items, products, fixed_items, materials RESTART IDENTITY CASCADE');
+  
+  // Seed operational configs
+  await db('operational_configs').insert([
+    { key: 'machine_depreciation_per_hour', value: 5000.0000 },
+    { key: 'labor_cost_per_minute', value: 500.0000 }
+  ]).onConflict('key').merge();
+});
+
+afterAll(async () => {
+  await db.destroy();
+});
+```
+
+---
+
+## 6. Frontend UI & Styling Guidelines
+
+- **Tech Stack**: Next.js (App Router), React, TypeScript, Vanilla CSS.
 - **Aesthetics & UI/UX**:
   - Premium, modern, and dark-themed visual language.
   - Smooth micro-animations and transition states.
@@ -119,7 +286,8 @@ $$\text{Final Suggested Price} = \text{round\_to\_100}(\text{Raw Suggested Price
 
 ---
 
-## 6. Directory Structure & Key Files
+## 7. Directory Structure & Key Files
+
 - `docs/`: Technical specifications.
   - `README.md`: Setup, architecture, and guides.
   - `db_schema_v4.md`: Detailed database logic.
@@ -130,10 +298,17 @@ $$\text{Final Suggested Price} = \text{round\_to\_100}(\text{Raw Suggested Price
   - `backup.sh` & `setup-launchd.sh`: Backup automation schedules.
 - `backend/`: API services.
 - `frontend/`: Web user interface.
+- `.agent/`: Agent instructions & configurations.
+  - `instruction.md`: Consolidated instructions and guidelines (this file).
+  - `SKILL/`: Folder containing community/third-party agent skills.
+    - `diegosouzapw-postgres-best-practices-v3/`
+    - `majiayu000-api-design-absolutelyskilled-absolutelyskilled/`
+    - `majiayu000-api-rest-design/`
+    - `partme-ai-vitest/`
 
 ---
 
-## 7. Operational Runbook
+## 8. Operational Runbook
 
 All agents and developers should know the core commands:
 - **Up all containers**: `docker-compose up -d`
@@ -141,10 +316,11 @@ All agents and developers should know the core commands:
 - **Run DB verification**: `bash scripts/test-db.sh`
 - **Inspect DB logs**: `docker-compose logs -f db`
 - **Database console**: `docker exec -it printcost_db psql -U admin -d printcost_db`
+- **Run backend tests**: `npm run test` (inside `backend/` directory)
 
 ---
 
-## 8. Agent Behavioral Safeguards
+## 9. Agent Behavioral Safeguards
 
 When writing or modifying files:
 1. **Strictly Preserve Database Triggers**: Do not try to bypass database constraint locks or rewrite PostgreSQL trigger logic inside application handlers. The database is the ultimate authority.
