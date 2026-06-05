@@ -1,5 +1,5 @@
 import { OrdersListPage } from '@/components/orders/orders-list-page'
 
-export default function OrdersPage() {
+export default function Page() {
   return <OrdersListPage />
 }
