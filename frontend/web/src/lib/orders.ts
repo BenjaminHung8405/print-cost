@@ -45,8 +45,7 @@ export const STATUS_CONFIG: Record<
 > = {
   draft: {
     label: 'Nháp',
-    className:
-      'bg-slate-800 text-slate-400 border border-slate-700',
+    className: 'bg-slate-800 text-slate-400 border border-slate-700',
   },
   printing: {
     label: 'Đang in',
@@ -56,18 +55,15 @@ export const STATUS_CONFIG: Record<
   },
   completed: {
     label: 'Chờ đóng gói',
-    className:
-      'bg-purple-950 text-purple-400 border border-purple-800',
+    className: 'bg-purple-950 text-purple-400 border border-purple-800',
   },
   shipping: {
     label: 'Đang giao',
-    className:
-      'bg-amber-950 text-amber-400 border border-amber-800',
+    className: 'bg-amber-950 text-amber-400 border border-amber-800',
   },
   delivered: {
     label: 'Thành công',
-    className:
-      'bg-emerald-950 text-emerald-400 border border-emerald-800',
+    className: 'bg-emerald-950 text-emerald-400 border border-emerald-800',
   },
   cancelled: {
     label: 'Đã hủy',

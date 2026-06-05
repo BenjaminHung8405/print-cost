@@ -41,7 +41,7 @@ export function OrderActionsDropdown({
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 hover:bg-slate-700 cursor-pointer transition-colors duration-150"
+          className="h-8 w-8 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors duration-150"
         >
           <MoreHorizontal className="h-4 w-4" />
           <span className="sr-only">Mở menu hành động</span>
@@ -49,21 +49,21 @@ export function OrderActionsDropdown({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-48 bg-slate-800 border-slate-700"
+        className="w-48 bg-popover border-border text-popover-foreground"
       >
         {hasNextStates && (
           <>
             <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="cursor-pointer hover:bg-slate-700 focus:bg-slate-700">
+              <DropdownMenuSubTrigger className="cursor-pointer hover:bg-muted focus:bg-muted">
                 <ArrowRight className="mr-2 h-4 w-4" />
                 Đổi trạng thái
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="bg-slate-800 border-slate-700">
+              <DropdownMenuSubContent className="bg-popover border-border text-popover-foreground">
                 {nextStates.map((status) => (
                   <DropdownMenuItem
                     key={status}
                     onClick={() => onStatusChange(order.id, status)}
-                    className="cursor-pointer hover:bg-slate-700 focus:bg-slate-700"
+                    className="cursor-pointer hover:bg-muted focus:bg-muted"
                   >
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium mr-2 ${STATUS_CONFIG[status].className}`}
@@ -74,13 +74,13 @@ export function OrderActionsDropdown({
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
-            <DropdownMenuSeparator className="bg-slate-700" />
+            <DropdownMenuSeparator className="bg-border" />
           </>
         )}
 
         <DropdownMenuItem
           onClick={() => onViewDetails(order)}
-          className="cursor-pointer hover:bg-slate-700 focus:bg-slate-700"
+          className="cursor-pointer hover:bg-muted focus:bg-muted"
         >
           <Eye className="mr-2 h-4 w-4" />
           Xem chi tiết
@@ -88,7 +88,7 @@ export function OrderActionsDropdown({
 
         <DropdownMenuItem
           onClick={() => onExportInvoice(order)}
-          className="cursor-pointer hover:bg-slate-700 focus:bg-slate-700 text-blue-400"
+          className="cursor-pointer hover:bg-muted focus:bg-muted text-blue-600 dark:text-blue-400"
         >
           <FileText className="mr-2 h-4 w-4" />
           Xuất hóa đơn

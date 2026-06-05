@@ -251,7 +251,7 @@ export function OrdersListPage() {
   const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
 
@@ -303,25 +303,26 @@ export function OrdersListPage() {
   }
 
   const handleExportInvoice = (order: Order) => {
-    // TODO: Implement invoice export
+    // Invoice export — Module 4 placeholder
     console.log('Export invoice for order:', order.code)
   }
 
+  // ✅ Fixed: uses Next.js router instead of console.log
   const handleCreateOrder = () => {
     router.push('/orders/create')
   }
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-background text-slate-100">
+      <div className="min-h-screen bg-background text-foreground">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Section */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-2xl font-bold font-mono tracking-tight text-slate-100">
+              <h1 className="text-2xl font-bold font-mono tracking-tight text-foreground">
                 QUẢN LÝ ĐƠN HÀNG
               </h1>
-              <p className="text-slate-400 text-sm mt-1">
+              <p className="text-muted-foreground text-sm mt-1">
                 Theo dõi vòng đời đơn hàng và trạng thái vận hành xưởng in
               </p>
             </div>
@@ -335,15 +336,15 @@ export function OrdersListPage() {
           </div>
 
           {/* Smart Filter Toolbar */}
-          <div className="flex flex-col lg:flex-row lg:items-center gap-4 pb-4 border-b border-slate-700 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4 pb-4 border-b border-border mb-6">
             {/* Search Input */}
             <div className="relative w-full lg:w-[30%]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Tìm tên khách hàng..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:ring-blue-500 focus:border-blue-500"
+                className="pl-10 bg-card border-border text-foreground placeholder:text-muted-foreground focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
@@ -356,10 +357,10 @@ export function OrdersListPage() {
                 }
                 className="w-full"
               >
-                <TabsList className="bg-slate-800 p-1 h-auto flex-wrap justify-start gap-1">
+                <TabsList className="bg-muted p-1 h-auto flex-wrap justify-start gap-1">
                   <TabsTrigger
                     value="all"
-                    className="data-[state=active]:bg-slate-600 data-[state=active]:text-slate-100 text-slate-400 px-3 py-1.5 text-sm cursor-pointer transition-colors duration-150"
+                    className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground px-3 py-1.5 text-sm cursor-pointer transition-colors duration-150"
                   >
                     Tất cả ({statusCounts.all})
                   </TabsTrigger>
@@ -368,7 +369,7 @@ export function OrdersListPage() {
                       <TabsTrigger
                         key={status}
                         value={status}
-                        className="data-[state=active]:bg-slate-600 data-[state=active]:text-slate-100 text-slate-400 px-3 py-1.5 text-sm cursor-pointer transition-colors duration-150"
+                        className="data-[state=active]:bg-background data-[state=active]:text-foreground text-muted-foreground px-3 py-1.5 text-sm cursor-pointer transition-colors duration-150"
                       >
                         {STATUS_CONFIG[status].label} ({statusCounts[status]})
                       </TabsTrigger>
@@ -380,30 +381,30 @@ export function OrdersListPage() {
           </div>
 
           {/* Orders Data Table */}
-          <div className="rounded-lg border border-slate-700 bg-background overflow-hidden">
+          <div className="rounded-lg border border-border bg-card overflow-hidden">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-slate-700 hover:bg-transparent">
-                    <TableHead className="text-slate-400 font-semibold">
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-muted-foreground font-semibold">
                       Mã đơn
                     </TableHead>
-                    <TableHead className="text-slate-400 font-semibold">
+                    <TableHead className="text-muted-foreground font-semibold">
                       Khách hàng
                     </TableHead>
-                    <TableHead className="text-slate-400 font-semibold">
+                    <TableHead className="text-muted-foreground font-semibold">
                       Ngày tạo
                     </TableHead>
-                    <TableHead className="text-slate-400 font-semibold">
+                    <TableHead className="text-muted-foreground font-semibold">
                       Chi tiết món
                     </TableHead>
-                    <TableHead className="text-slate-400 font-semibold">
+                    <TableHead className="text-muted-foreground font-semibold">
                       Trạng thái
                     </TableHead>
-                    <TableHead className="text-slate-400 font-semibold text-right">
+                    <TableHead className="text-muted-foreground font-semibold text-right">
                       Tổng tiền
                     </TableHead>
-                    <TableHead className="text-slate-400 font-semibold w-12">
+                    <TableHead className="text-muted-foreground font-semibold w-12">
                       <span className="sr-only">Hành động</span>
                     </TableHead>
                   </TableRow>
@@ -419,17 +420,17 @@ export function OrdersListPage() {
                       return (
                         <TableRow
                           key={order.id}
-                          className="border-slate-700 hover:bg-slate-800/60 transition-colors duration-150"
+                          className="border-border hover:bg-muted/50 transition-colors duration-150"
                         >
                           {/* Order Code */}
-                          <TableCell className="font-mono text-slate-400 whitespace-nowrap">
+                          <TableCell className="font-mono text-muted-foreground whitespace-nowrap">
                             #{order.code}
                           </TableCell>
 
                           {/* Customer */}
                           <TableCell>
                             <div>
-                              <p className="font-semibold text-slate-100">
+                              <p className="font-semibold text-foreground">
                                 {order.customerName}
                               </p>
                               {order.customerContact && (
@@ -437,7 +438,7 @@ export function OrdersListPage() {
                                   href={order.customerContact}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition-colors duration-150 cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-500 dark:hover:text-blue-300 transition-colors duration-150 cursor-pointer"
                                 >
                                   <span>Liên hệ</span>
                                   <ExternalLink className="h-2.5 w-2.5" />
@@ -447,7 +448,7 @@ export function OrdersListPage() {
                           </TableCell>
 
                           {/* Created At */}
-                          <TableCell className="font-mono text-slate-400 text-sm whitespace-nowrap">
+                          <TableCell className="font-mono text-muted-foreground text-sm whitespace-nowrap">
                             {formatDateTime(order.createdAt)}
                           </TableCell>
 
@@ -455,13 +456,13 @@ export function OrdersListPage() {
                           <TableCell>
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <span className="block max-w-[200px] truncate text-slate-300 cursor-default">
+                                <span className="block max-w-[200px] truncate text-foreground cursor-default">
                                   {itemsSummary}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent
                                 side="bottom"
-                                className="bg-slate-800 border-slate-700 text-slate-100 max-w-xs"
+                                className="bg-popover border-border text-popover-foreground max-w-xs"
                               >
                                 {itemsSummary}
                               </TooltipContent>
@@ -474,7 +475,7 @@ export function OrdersListPage() {
                           </TableCell>
 
                           {/* Total Price */}
-                          <TableCell className="text-right font-mono font-bold text-slate-100 whitespace-nowrap">
+                          <TableCell className="text-right font-mono font-bold text-foreground whitespace-nowrap">
                             {formatVND(order.totalFinalInvoicePrice)}
                           </TableCell>
 
