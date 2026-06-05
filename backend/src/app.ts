@@ -4,6 +4,10 @@ import dotenv from 'dotenv';
 import { calculateRequestSchema } from './core/calculation/schemas';
 import { calculateProductCosts } from './core/calculation/engine';
 import { verifyDatabaseConnection, db } from './core/database/client';
+import { materialsRouter } from './api/routes/materials';
+import { fixedItemsRouter } from './api/routes/fixed-items';
+import { productsRouter } from './api/routes/products';
+import { errorHandler } from './api/middlewares/errorHandler';
 
 // Load environment variables
 dotenv.config();
@@ -72,6 +76,14 @@ app.post('/api/calculate', (req: Request, res: Response) => {
     });
   }
 });
+
+// Register CRUD Category Management routers
+app.use('/api/materials', materialsRouter);
+app.use('/api/fixed-items', fixedItemsRouter);
+app.use('/api/products', productsRouter);
+
+// Register centralized error handling middleware at the very end
+app.use(errorHandler);
 
 // Bootstrapping function
 async function startServer() {
