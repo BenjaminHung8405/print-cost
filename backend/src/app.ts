@@ -17,7 +17,7 @@ const app = express();
 const PORT = process.env.API_PORT || 8080;
 
 // Enable CORS and JSON parsing
-app.use(cors());
+app.use(cors()); // Cho phép mọi Origin truy cập (Next.js localhost:3000 & Mobile LAN/Expo client)
 app.use(express.json());
 
 /**

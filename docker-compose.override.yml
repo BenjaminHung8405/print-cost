@@ -44,16 +44,16 @@ services:
   # Frontend: Hot-reload tương tự
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend/web
       dockerfile: Dockerfile.dev
     environment:
       NODE_ENV: development
     volumes:
       # Mount source code
-      - ./frontend/src:/app/src
-      - ./frontend/pages:/app/pages
-      - ./frontend/public:/app/public
-      - ./frontend/package.json:/app/package.json
+      - ./frontend/web/src:/app/src
+      - ./frontend/web/pages:/app/pages
+      - ./frontend/web/public:/app/public
+      - ./frontend/web/package.json:/app/package.json
       - /app/node_modules
     ports:
       - "3000:3000"

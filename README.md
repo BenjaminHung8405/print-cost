@@ -25,10 +25,13 @@ print-cost/
 ├── .env.example                   # Environment template
 ├── .gitignore                     # Git exclusions
 │
-├── backend/                       # (Create) Node.js API
-├── frontend/                      # (Create) Next.js UI
+├── backend/                       # Node.js API
+├── frontend/                      # Client applications
+│   ├── web/                       # Next.js Web UI (Self-hosted)
+│   └── mobile/                    # Flutter Mobile App (Client-side)
 │
 └── postgres_data/                 # (Auto-created) Database
+
 ```
 
 ---

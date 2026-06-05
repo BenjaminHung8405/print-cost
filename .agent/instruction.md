@@ -7,20 +7,21 @@ This document serves as the **source of truth** for all development, refactoring
 ## 1. Project Overview & Architecture
 
 ### System Architecture
-PrintCost is a **Self-hosted 3D Printing Cost Management System** built with a monolithic 3-tier architecture, designed to run locally on a Mac Mini M4 using Docker Compose.
+PrintCost is a **Self-hosted 3D Printing Cost Management System** built with a monolithic 3-tier architecture. It supports a Next.js Web application (self-hosted via Docker Compose on Mac Mini M4) and a Mobile application (Flutter running on client devices connecting over LAN/Wi-Fi).
 
 ```mermaid
 graph TD
-    Client[Client Devices: Desktop, Tablet, Mobile] -->|HTTP/HTTPS Port 80/443| Nginx[Nginx Reverse Proxy]
+    WebClient[Web Client: Desktop, Tablet] -->|HTTP/HTTPS Port 80/443| Nginx[Nginx Reverse Proxy]
+    MobileClient[Mobile App: Flutter] -->|LAN IP / Proxy Port 80/443| Nginx
     Nginx -->|Route: /api/*| Backend[Backend API: Node.js/Express]
-    Nginx -->|Route: /*| Frontend[Frontend UI: Next.js]
+    Nginx -->|Route: /*| Frontend[Frontend Web UI: Next.js]
     Backend -->|Internal Port 5432| DB[(PostgreSQL 16 Alpine)]
 ```
 
 ### Infrastructure Configuration
 - **Resource Constraints (Limits)**:
   - **nginx**: Alpine-based, 0.5 CPU, 256MB RAM. Exposed on host ports `80`/`443`.
-  - **frontend**: Next.js, 2.0 CPU, 2GB RAM. Internal port `3000`.
+  - **frontend (web)**: Next.js Web App, 2.0 CPU, 2GB RAM. Internal port `3000` (built from `./frontend/web`).
   - **backend**: Node.js/Express API, 4.0 CPU, 4GB RAM. Internal port `8080`.
   - **db**: PostgreSQL 16 Alpine, 2.0 CPU, 2GB RAM. Internal port `5432` (Internal only, not exposed on host network).
 - **Docker Networks**: Secure internal network. Only Nginx is accessible from the host/external network.
@@ -297,7 +298,9 @@ afterAll(async () => {
   - `test-db.sh`: Verification suite verifying the schema rules.
   - `backup.sh` & `setup-launchd.sh`: Backup automation schedules.
 - `backend/`: API services.
-- `frontend/`: Web user interface.
+- `frontend/`: Client applications.
+  - `web/`: Next.js web application.
+  - `mobile/`: Flutter mobile application.
 - `.agent/`: Agent instructions & configurations.
   - `instruction.md`: Consolidated instructions and guidelines (this file).
   - `SKILL/`: Folder containing community/third-party agent skills.

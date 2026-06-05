@@ -101,7 +101,7 @@ services:
   # 4. Frontend: Giao diện web hiển thị cho bạn thao tác
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend/web
       dockerfile: Dockerfile
     container_name: printcost_frontend
     restart: unless-stopped
