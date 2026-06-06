@@ -57,7 +57,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
                 'raw_labor_cost',       oi.raw_labor_cost::FLOAT,
                 'raw_fixed_items_cost', oi.raw_fixed_items_cost::FLOAT,
                 'raw_unit_cogs',        oi.raw_unit_cogs::FLOAT,
-                'total_item_price',     oi.total_item_price::FLOAT
+                'total_item_price',     oi.total_item_price::FLOAT,
+                'snapshot_batch_quantity', oi.snapshot_batch_quantity
               )
             ) FILTER (WHERE oi.id IS NOT NULL), '[]'
           ) as items
@@ -124,7 +125,8 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
                 'raw_labor_cost',        oi.raw_labor_cost::FLOAT,
                 'raw_fixed_items_cost',  oi.raw_fixed_items_cost::FLOAT,
                 'raw_unit_cogs',         oi.raw_unit_cogs::FLOAT,
-                'total_item_price',      oi.total_item_price::FLOAT
+                'total_item_price',      oi.total_item_price::FLOAT,
+                'snapshot_batch_quantity', oi.snapshot_batch_quantity
               )
             ) FILTER (WHERE oi.id IS NOT NULL), '[]'
           ) as items
@@ -214,6 +216,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
           weight_gram: Number(product.weight_gram),
           print_time_seconds: product.print_time_seconds,
           labor_time_minutes: product.labor_time_minutes,
+          batch_quantity: product.batch_quantity,
           margin_override: product.margin_override !== null && product.margin_override !== undefined 
             ? Number(product.margin_override) 
             : undefined,
@@ -235,7 +238,11 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
           finalUnitPrice = roundTo100(Big(item.price_override));
         }
 
-        // E. Freeze item details into the 'order_items' ledger
+        // E. Freeze item details into the 'order_items' ledger (using Unit-Level Snapshots for analytics parity)
+        const unitWeightGram = Number(Math.max(0.01, Number(Big(product.weight_gram).div(product.batch_quantity).toFixed(2))));
+        const unitPrintSeconds = Math.max(1, Math.round(product.print_time_seconds / product.batch_quantity));
+        const unitLaborMinutes = Math.round(product.labor_time_minutes / product.batch_quantity);
+
         await trx('order_items').insert({
           order_id: newOrder.id,
           product_id: product.id,
@@ -243,14 +250,15 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
           // Metadata Snapshot
           snapshot_product_name: product.name,
           snapshot_material_name: product.material_name,
-          snapshot_weight_gram: product.weight_gram,
-          snapshot_print_time_seconds: product.print_time_seconds,
-          snapshot_labor_time_minutes: product.labor_time_minutes,
+          snapshot_weight_gram: unitWeightGram,
+          snapshot_print_time_seconds: unitPrintSeconds,
+          snapshot_labor_time_minutes: unitLaborMinutes,
           snapshot_fail_rate: product.material_fail_rate,
           snapshot_margin: calculatedResult.applied_margin,
+          snapshot_batch_quantity: product.batch_quantity,
           item_calculation_version: 1,
 
-          // Component raw costs (using engine's snake_case properties)
+          // Component raw costs (using engine's snake_case properties - already divided to unit level in engine)
           raw_material_cost: calculatedResult.raw_material_cost,
           raw_machine_cost: calculatedResult.raw_machine_cost,
           raw_labor_cost: calculatedResult.raw_labor_cost,

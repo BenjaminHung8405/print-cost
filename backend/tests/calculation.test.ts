@@ -124,4 +124,49 @@ describe('Calculation Engine - calculateProductCosts', () => {
 
     expect(() => calculateProductCosts(input)).toThrow('Biên lợi nhuận không được phép bằng 1.00 (100%)');
   });
+
+  it('should calculate allocated unit costs correctly when batch_quantity is specified', () => {
+    const input: CalculateRequestInput = {
+      material: {
+        price_per_kg: 250000,
+        fail_rate: 1.10,
+        default_margin: 0.50,
+      },
+      operational_config: {
+        machine_depreciation_per_hour: 5000,
+        labor_cost_per_minute: 600,
+      },
+      weight_gram: 20,
+      print_time_seconds: 3600,
+      labor_time_minutes: 10,
+      batch_quantity: 5,
+      fixed_items: [
+        { cost: 1000, quantity: 2 }
+      ]
+    };
+
+    const result = calculateProductCosts(input);
+
+    // Assert individual raw costs (each allocated by batch_quantity of 5)
+    // Material: (20g * 250đ/g * 1.10) / 5 = 5500 / 5 = 1100đ
+    expect(result.raw_material_cost).toBe(1100);
+
+    // Machine: ((3600s / 3600s/h) * 5000đ/h) / 5 = 5000 / 5 = 1000đ
+    expect(result.raw_machine_cost).toBe(1000);
+
+    // Labor: (10m * 600đ/m) / 5 = 6000 / 5 = 1200đ
+    expect(result.raw_labor_cost).toBe(1200);
+
+    // Fixed items (not allocated by batch): 1000 * 2 = 2000đ
+    expect(result.raw_fixed_items_cost).toBe(2000);
+
+    // COGS: 1100 + 1000 + 1200 + 2000 = 5300đ
+    expect(result.raw_unit_cogs).toBe(5300);
+
+    // Suggested: 5300 / (1 - 0.50) = 10600đ
+    expect(result.raw_suggested_price).toBe(10600);
+
+    // Final price (rounded to 100): 10600đ
+    expect(result.final_suggested_price).toBe(10600);
+  });
 });

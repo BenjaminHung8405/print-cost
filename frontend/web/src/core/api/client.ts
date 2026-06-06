@@ -75,6 +75,7 @@ export interface ApiProduct {
   weight_gram: number;
   print_time_seconds: number;
   labor_time_minutes: number;
+  batch_quantity: number;
   margin_override: number | null;
   fixed_items: ApiFixedItem[];
 }
@@ -94,6 +95,7 @@ export interface ApiOrderItem {
   snapshot_labor_time_minutes: number;
   snapshot_fail_rate: number;
   snapshot_margin: number;
+  snapshot_batch_quantity: number;
   quantity: number;
   final_unit_price: number;
   raw_material_cost: number;

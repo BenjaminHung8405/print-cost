@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+// Helper to prevent the Zod coercion trap (Preprocessing empty inputs to null)
+export const safeCoerceNumber = z.preprocess((val) => {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'string' && val.trim() === '') return null;
+  return Number(val);
+}, z.number().nullable());
+
 export const materialSchema = z.object({
   price_per_kg: z.coerce.number().positive('Giá nhựa phải lớn hơn 0'),
   fail_rate: z.coerce.number().min(1.00, 'Hệ số hao hụt (fail rate) phải >= 1.00'),
@@ -24,19 +31,17 @@ export const calculateRequestSchema = z.object({
   labor_time_minutes: z.coerce.number().int('Thời gian công thợ phải là số nguyên phút').nonnegative('Thời gian công thợ phải >= 0'),
   margin_override: z.coerce.number().min(0.00).max(1.00, 'Ghi đè biên lợi nhuận phải từ 0.00 đến 1.00').nullable().optional(),
   fixed_items: z.array(fixedItemSchema).default([]),
+  batch_quantity: safeCoerceNumber.pipe(
+    z.number({ invalid_type_error: 'Cỡ lô phải là một số nguyên' })
+     .int('Cỡ lô phải là số nguyên')
+     .positive('Cỡ lô phải lớn hơn 0')
+  ).default(1),
 });
 
 export type CalculateRequestInput = z.infer<typeof calculateRequestSchema>;
 export type MaterialInput = z.infer<typeof materialSchema>;
 export type OperationalConfigInput = z.infer<typeof operationalConfigSchema>;
 export type FixedItemInput = z.infer<typeof fixedItemSchema>;
-
-// Helper to prevent the Zod coercion trap (Preprocessing empty inputs to null)
-export const safeCoerceNumber = z.preprocess((val) => {
-  if (val === null || val === undefined) return null;
-  if (typeof val === 'string' && val.trim() === '') return null;
-  return Number(val);
-}, z.number().nullable());
 
 // Validation schema for creating/updating materials
 export const createMaterialSchema = z.object({
@@ -88,6 +93,11 @@ export const createProductSchema = z.object({
      .int('Thời gian công thợ phải là số nguyên phút')
      .nonnegative('Thời gian công thợ phải >= 0')
   ),
+  batch_quantity: safeCoerceNumber.pipe(
+    z.number({ invalid_type_error: 'Cỡ lô phải là một số nguyên' })
+     .int('Cỡ lô phải là số nguyên')
+     .positive('Cỡ lô phải lớn hơn 0')
+  ).default(1),
   margin_override: safeCoerceNumber.pipe(
     z.number({ invalid_type_error: 'Biên lợi nhuận ghi đè phải là một số' })
      .min(0.00, 'Biên lợi nhuận phải >= 0.00')

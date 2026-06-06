@@ -7,6 +7,7 @@ describe('Orders API Integration Tests', () => {
   let testMaterialId: number;
   let testProductId: number;
   let testProductZeroMarginId: number;
+  let testBatchProductId: number;
   let testFixedItemId: number;
 
   beforeAll(async () => {
@@ -51,6 +52,18 @@ describe('Orders API Integration Tests', () => {
     }).returning('*');
     testProductZeroMarginId = productZeroMargin.id;
 
+    // 5b. Seed a batch test product
+    const [batchProduct] = await db('products').insert({
+      name: 'TEST-BATCH-PRODUCT',
+      material_id: testMaterialId,
+      weight_gram: 50.00,
+      print_time_seconds: 18000,
+      labor_time_minutes: 25,
+      batch_quantity: 5,
+      margin_override: null
+    }).returning('*');
+    testBatchProductId = batchProduct.id;
+
     // 6. Seed a test fixed item
     const [fixedItem] = await db('fixed_items').insert({
       name: 'TEST-STICKER',
@@ -59,9 +72,15 @@ describe('Orders API Integration Tests', () => {
     }).returning('*');
     testFixedItemId = fixedItem.id;
 
-    // 7. Associate the fixed item with standard product
+    // 7. Associate the fixed item with standard product and batch product
     await db('product_fixed_items').insert({
       product_id: testProductId,
+      fixed_item_id: testFixedItemId,
+      quantity: 1
+    });
+
+    await db('product_fixed_items').insert({
+      product_id: testBatchProductId,
       fixed_item_id: testFixedItemId,
       quantity: 1
     });
@@ -127,6 +146,58 @@ describe('Orders API Integration Tests', () => {
     expect(snapshot.quantity).toBe(2);
     // total_item_price (generated): 24900 * 2 = 49800
     expect(Number(snapshot.total_item_price)).toBe(49800);
+  });
+
+  it('should create an order with a batch product, allocate unit costs, and freeze snapshot_batch_quantity', async () => {
+    const res = await request(app)
+      .post('/api/orders')
+      .send({
+        customer_name: 'Nguyen Batch Test',
+        customer_contact: '0901112222',
+        items: [
+          {
+            product_id: testBatchProductId,
+            quantity: 3
+          }
+        ]
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+
+    const orderId = res.body.data.order_id;
+    const items = await db('order_items').where({ order_id: orderId });
+    expect(items.length).toBe(1);
+
+    const snapshot = items[0];
+    expect(snapshot.snapshot_product_name).toBe('TEST-BATCH-PRODUCT');
+    expect(snapshot.snapshot_batch_quantity).toBe(5);
+
+    // Unit-level snapshots:
+    // snapshot_weight_gram: 50 / 5 = 10g
+    expect(Number(snapshot.snapshot_weight_gram)).toBe(10);
+    // snapshot_print_time_seconds: 18000 / 5 = 3600s
+    expect(snapshot.snapshot_print_time_seconds).toBe(3600);
+    // snapshot_labor_time_minutes: 25 / 5 = 5m
+    expect(snapshot.snapshot_labor_time_minutes).toBe(5);
+
+    // Unit costs (allocated by batch_quantity of 5):
+    // Material: (50g * 250đ/g * 1.10) / 5 = 2750đ
+    expect(Number(snapshot.raw_material_cost)).toBe(2750);
+    // Machine: ((18000 / 3600) * 5000) / 5 = 5000đ
+    expect(Number(snapshot.raw_machine_cost)).toBe(5000);
+    // Labor: (25m * 500đ/m) / 5 = 2500đ
+    expect(Number(snapshot.raw_labor_cost)).toBe(2500);
+    // Fixed items: 2400.33đ
+    expect(Number(snapshot.raw_fixed_items_cost)).toBe(2400.33);
+
+    // COGS: 2750 + 5000 + 2500 + 2400.33 = 12650.33đ
+    expect(Number(snapshot.raw_unit_cogs)).toBe(12650.33);
+
+    // final_unit_price: roundTo100(12650.33 / 0.6) = roundTo100(21083.88) = 21100đ
+    expect(Number(snapshot.final_unit_price)).toBe(21100);
+    expect(snapshot.quantity).toBe(3);
+    expect(Number(snapshot.total_item_price)).toBe(63300);
   });
 
   it('should accept custom price_override and round it correctly to 100 VND', async () => {

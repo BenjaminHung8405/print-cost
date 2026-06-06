@@ -60,6 +60,7 @@ export function ProductForm({
   const [weightGram, setWeightGram] = useState("");
   const [printTimeSeconds, setPrintTimeSeconds] = useState(0);
   const [laborTimeMinutes, setLaborTimeMinutes] = useState("0");
+  const [batchQuantity, setBatchQuantity] = useState("1");
 
   // Margin Override state
   const [isMarginOverridden, setIsMarginOverridden] = useState(false);
@@ -97,6 +98,7 @@ export function ProductForm({
       setSelectedMaterialId(productData.material_id);
       setWeightGram(productData.weight_gram.toString());
       setLaborTimeMinutes(productData.labor_time_minutes.toString());
+      setBatchQuantity((productData.batch_quantity || 1).toString());
 
       const seconds = productData.print_time_seconds;
       setPrintTimeSeconds(seconds);
@@ -132,6 +134,7 @@ export function ProductForm({
       setSelectedMaterialId(materials[0]?.id || "");
       setWeightGram("");
       setLaborTimeMinutes("0");
+      setBatchQuantity("1");
       setPrintTimeSeconds(0);
       setHours("0");
       setMinutes("0");
@@ -226,6 +229,7 @@ export function ProductForm({
       ? (parseFloatDecimal(marginOverridePercent) || 0) / 100
       : null,
     default_margin: currentMaterial?.default_margin || 0.4,
+    batch_quantity: parseInt(batchQuantity, 10) || 1,
   };
 
   // Run Client-side calculations
@@ -276,6 +280,11 @@ export function ProductForm({
       onErrorMessage("Thời gian công thợ không được phép âm");
       return;
     }
+    const batchQtyNum = parseInt(batchQuantity, 10);
+    if (isNaN(batchQtyNum) || batchQtyNum <= 0) {
+      onErrorMessage("Cỡ lô (Số lượng trong mẻ in) phải là số nguyên lớn hơn 0");
+      return;
+    }
     if (isMarginOverridden) {
       const overrideVal = parseFloatDecimal(marginOverridePercent);
       if (isNaN(overrideVal) || overrideVal < 0 || overrideVal > 100) {
@@ -292,6 +301,7 @@ export function ProductForm({
         weight_gram: weightNum,
         print_time_seconds: printTimeSeconds,
         labor_time_minutes: laborNum,
+        batch_quantity: batchQtyNum,
         margin_override: isMarginOverridden
           ? parseFloatDecimal(marginOverridePercent) / 100
           : null,
@@ -403,15 +413,15 @@ export function ProductForm({
                   </select>
                 </div>
 
-                {/* 3. Weight & Labor Time */}
-                <div className="grid grid-cols-2 gap-4">
+                {/* 3. Weight & Labor Time & Batch Quantity */}
+                <div className="grid grid-cols-3 gap-3">
                   {/* Weight */}
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="product-weight"
-                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
                     >
-                      Trọng lượng (gram)
+                      Trọng lượng (g)
                     </Label>
                     <div className="relative flex items-center">
                       <Input
@@ -420,12 +430,12 @@ export function ProductForm({
                         value={weightGram}
                         onChange={(e) => setWeightGram(e.target.value)}
                         placeholder="0.00"
-                        className="text-right pr-8 font-mono"
+                        className="text-right pr-6 font-mono text-xs"
                         disabled={isSubmitting}
                         autoComplete="off"
                         required
                       />
-                      <span className="absolute right-3 text-xs font-mono text-muted-foreground">
+                      <span className="absolute right-2.5 text-[10px] font-mono text-muted-foreground">
                         g
                       </span>
                     </div>
@@ -435,9 +445,9 @@ export function ProductForm({
                   <div className="space-y-1.5">
                     <Label
                       htmlFor="product-labor"
-                      className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
                     >
-                      Công thợ (phút)
+                      Công thợ (m)
                     </Label>
                     <div className="relative flex items-center">
                       <Input
@@ -447,13 +457,40 @@ export function ProductForm({
                         value={laborTimeMinutes}
                         onChange={(e) => setLaborTimeMinutes(e.target.value)}
                         placeholder="0"
-                        className="text-right pr-10 font-mono"
+                        className="text-right pr-8 font-mono text-xs"
                         disabled={isSubmitting}
                         autoComplete="off"
                         required
                       />
-                      <span className="absolute right-3 text-xs font-mono text-muted-foreground">
-                        phút
+                      <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">
+                        m
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Batch Quantity */}
+                  <div className="space-y-1.5">
+                    <Label
+                      htmlFor="product-batch"
+                      className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
+                    >
+                      Cỡ lô (SL/mẻ)
+                    </Label>
+                    <div className="relative flex items-center">
+                      <Input
+                        id="product-batch"
+                        type="number"
+                        min="1"
+                        value={batchQuantity}
+                        onChange={(e) => setBatchQuantity(e.target.value)}
+                        placeholder="1"
+                        className="text-right pr-8 font-mono text-xs"
+                        disabled={isSubmitting}
+                        autoComplete="off"
+                        required
+                      />
+                      <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">
+                        pcs
                       </span>
                     </div>
                   </div>
@@ -831,12 +868,16 @@ export function ProductForm({
                     <div className="flex justify-between text-muted-foreground leading-relaxed">
                       <span className="flex items-center gap-1.5">
                         <Coins className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-                        Nhựa ({calculationInput.weight_gram}g x fail):
+                        {calculationInput.batch_quantity > 1 ? (
+                          `Nhựa (Phân bổ ${calculationInput.weight_gram}g / ${calculationInput.batch_quantity} cái):`
+                        ) : (
+                          `Nhựa (${calculationInput.weight_gram}g x fail):`
+                        )}
                       </span>
                       <span>{formatVND(results.rawMaterialCost)}</span>
                     </div>
                     {currentMaterial && (
-                      <span className="text-[10px] text-muted-foreground/60 block pl-5 -mt-1">
+                      <span className="text-[10px] text-muted-foreground/60 block pl-5 -mt-1 font-mono">
                         Chi tiết: {currentMaterial.name} ({formatDecimal(currentMaterial.price_per_kg/1000, 1)}đ/g), fail-rate {currentMaterial.fail_rate}x
                       </span>
                     )}
@@ -845,8 +886,11 @@ export function ProductForm({
                     <div className="flex justify-between text-muted-foreground leading-relaxed mt-2">
                       <span className="flex items-center gap-1.5">
                         <Cpu className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-                        Khấu hao máy ({Math.floor(printTimeSeconds / 3600)}h
-                        {Math.floor((printTimeSeconds % 3600) / 60)}m):
+                        {calculationInput.batch_quantity > 1 ? (
+                          `Khấu hao máy (Phân bổ ${Math.floor(printTimeSeconds / 3600)}h${Math.floor((printTimeSeconds % 3600) / 60)}m / ${calculationInput.batch_quantity} cái):`
+                        ) : (
+                          `Khấu hao máy (${Math.floor(printTimeSeconds / 3600)}h${Math.floor((printTimeSeconds % 3600) / 60)}m):`
+                        )}
                       </span>
                       <span>{formatVND(results.rawMachineCost)}</span>
                     </div>
@@ -855,7 +899,11 @@ export function ProductForm({
                     <div className="flex justify-between text-muted-foreground leading-relaxed">
                       <span className="flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
-                        Nhân công làm nguội ({calculationInput.labor_time_minutes}m):
+                        {calculationInput.batch_quantity > 1 ? (
+                          `Nhân công (Phân bổ ${calculationInput.labor_time_minutes}m / ${calculationInput.batch_quantity} cái):`
+                        ) : (
+                          `Nhân công làm nguội (${calculationInput.labor_time_minutes}m):`
+                        )}
                       </span>
                       <span>{formatVND(results.rawLaborCost)}</span>
                     </div>
@@ -889,7 +937,7 @@ export function ProductForm({
 
                     {/* COGS total */}
                     <div className="flex justify-between text-foreground font-bold text-sm bg-muted/80 p-2 rounded border border-border">
-                      <span>TỔNG GIÁ VỐN (COGS):</span>
+                      <span>{calculationInput.batch_quantity > 1 ? "GIÁ VỐN ĐƠN VỊ (COGS):" : "TỔNG GIÁ VỐN (COGS):"}</span>
                       <span className="text-foreground">{formatVND(results.totalCOGS)}</span>
                     </div>
                   </div>

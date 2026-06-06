@@ -1,4 +1,4 @@
-# 🤖 PrintCost - Agent Instructions & Coding Standards
+# PrintCost - Agent Instructions & Coding Standards
 
 This document serves as the **source of truth** for all development, refactoring, and AI-assisted agent tasks in the `PrintCost` repository. All generated code, database migrations, API endpoints, and user interface components must strictly adhere to the guidelines and specifications documented below.
 

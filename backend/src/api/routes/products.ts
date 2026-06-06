@@ -79,6 +79,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
           weight_gram: validatedData.weight_gram,
           print_time_seconds: validatedData.print_time_seconds,
           labor_time_minutes: validatedData.labor_time_minutes,
+          batch_quantity: validatedData.batch_quantity,
           margin_override: validatedData.margin_override
         })
         .returning('*');
@@ -123,6 +124,7 @@ router.put('/:id', async (req: Request, res: Response, next: NextFunction) => {
           weight_gram: validatedData.weight_gram,
           print_time_seconds: validatedData.print_time_seconds,
           labor_time_minutes: validatedData.labor_time_minutes,
+          batch_quantity: validatedData.batch_quantity,
           margin_override: validatedData.margin_override
         })
         .returning('*');

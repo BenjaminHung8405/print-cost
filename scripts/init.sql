@@ -127,6 +127,7 @@ CREATE TABLE products (
     weight_gram NUMERIC(10, 2) NOT NULL CHECK (weight_gram > 0),
     print_time_seconds INT NOT NULL CHECK (print_time_seconds > 0),
     labor_time_minutes INT NOT NULL DEFAULT 0 CHECK (labor_time_minutes >= 0),
+    batch_quantity INT NOT NULL DEFAULT 1 CHECK (batch_quantity > 0),
     margin_override NUMERIC(5, 2) CHECK (margin_override BETWEEN 0.00 AND 1.00),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -169,6 +170,7 @@ CREATE TABLE order_items (
     snapshot_labor_time_minutes INT NOT NULL CHECK (snapshot_labor_time_minutes >= 0),
     snapshot_fail_rate NUMERIC(5, 2) NOT NULL CHECK (snapshot_fail_rate >= 1.00),
     snapshot_margin NUMERIC(5, 2) NOT NULL CHECK (snapshot_margin BETWEEN 0.00 AND 1.00),
+    snapshot_batch_quantity INT NOT NULL DEFAULT 1 CHECK (snapshot_batch_quantity > 0),
     item_calculation_version INT NOT NULL DEFAULT 1 CHECK (item_calculation_version > 0),
     
     -- Chi tiết cấu thành Chi phí gốc (Raw)

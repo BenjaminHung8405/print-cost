@@ -78,21 +78,29 @@ export function calculateProductCosts(input: CalculateRequestInput) {
     labor_time_minutes,
     margin_override,
     fixed_items,
+    batch_quantity,
   } = input;
 
-  // 1. Calculate component raw costs
-  const rawMaterialCost = calculateMaterialCost(weight_gram, material.price_per_kg, material.fail_rate);
-  const rawMachineCost = calculateMachineCost(print_time_seconds, operational_config.machine_depreciation_per_hour);
-  const rawLaborCost = calculateLaborCost(labor_time_minutes, operational_config.labor_cost_per_minute);
-  const rawFixedItemsCost = calculateFixedItemsCost(fixed_items);
+  const batchQty = new Big(Math.max(1, batch_quantity || 1));
 
-  // 2. Calculate Raw Unit COGS
+  // 1. Calculate component raw costs for the batch
+  const rawMaterialCostTotal = calculateMaterialCost(weight_gram, material.price_per_kg, material.fail_rate);
+  const rawMachineCostTotal = calculateMachineCost(print_time_seconds, operational_config.machine_depreciation_per_hour);
+  const rawLaborCostTotal = calculateLaborCost(labor_time_minutes, operational_config.labor_cost_per_minute);
+  
+  // 2. Divide by batch quantity to get unit costs
+  const rawMaterialCost = rawMaterialCostTotal.div(batchQty);
+  const rawMachineCost = rawMachineCostTotal.div(batchQty);
+  const rawLaborCost = rawLaborCostTotal.div(batchQty);
+  const rawFixedItemsCost = calculateFixedItemsCost(fixed_items); // Already unit-level
+
+  // 3. Calculate Raw Unit COGS
   const rawUnitCogs = rawMaterialCost
     .plus(rawMachineCost)
     .plus(rawLaborCost)
     .plus(rawFixedItemsCost);
 
-  // 3. Determine the margin to use
+  // 4. Determine the margin to use
   const margin = margin_override !== undefined && margin_override !== null
     ? margin_override
     : material.default_margin;
@@ -101,11 +109,11 @@ export function calculateProductCosts(input: CalculateRequestInput) {
     throw new Error('LỖI HỆ THỐNG: Biên lợi nhuận không được phép bằng 1.00 (100%)');
   }
 
-  // 4. Suggested retail price before rounding
+  // 5. Suggested retail price before rounding
   // Formula: Raw Unit COGS / (1 - Margin)
   const rawSuggestedPrice = rawUnitCogs.div(Big(1).minus(margin));
 
-  // 5. Final Suggested Price (rounded to nearest 100)
+  // 6. Final Suggested Price (rounded to nearest 100)
   const finalSuggestedPrice = roundTo100(rawSuggestedPrice);
 
   // Return clean JS numbers matching database decimal precision (NUMERIC(12, 4) for raw values)
