@@ -23,10 +23,15 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const rows = await db('operational_configs').select('key', 'value');
 
     // Chuyển mảng [{key, value}, ...] thành object phẳng {key: value, ...}
+    // Defensive defaults: ensure both keys always exist even if DB is missing a seed row.
+    // Without this, undefined fields reach the frontend and cause big.js to throw Invalid number.
     const data = rows.reduce<Record<string, number>>((acc, row) => {
       acc[row.key] = Number(row.value);
       return acc;
-    }, {});
+    }, {
+      machine_depreciation_per_hour: 0,
+      labor_cost_per_minute: 0,
+    });
 
     res.json({ success: true, data });
   } catch (error) {

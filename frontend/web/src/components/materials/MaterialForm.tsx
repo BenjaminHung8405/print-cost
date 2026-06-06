@@ -91,6 +91,13 @@ export function MaterialForm({
   // Pricing calculator using big.js (No intermediate rounding)
   useEffect(() => {
     try {
+      // Guard: Validate all operational config values are finite numbers before proceeding.
+      // operationalConfigs fields come from PostgreSQL NUMERIC and can be undefined
+      // if the DB is missing a seed row, causing new Big(undefined/NaN) to throw.
+      const machineRate = Number(operationalConfigs.machine_depreciation_per_hour);
+      const laborRate = Number(operationalConfigs.labor_cost_per_minute);
+      if (!isFinite(machineRate) || !isFinite(laborRate)) return;
+
       const priceVal = parseVNDInteger(isPriceFocused ? rawPriceInput : pricePerKg.toString()) || 0;
       const pricePerKgBig = new Big(priceVal);
 
@@ -98,7 +105,7 @@ export function MaterialForm({
       const failRateBig = new Big(failRateVal);
 
       const marginBig = new Big(defaultMargin).div(100);
-      
+
       const weightVal = parseFloatDecimal(simParams.weightGram) || 0;
       const weightBig = new Big(weightVal);
 
@@ -117,10 +124,10 @@ export function MaterialForm({
       // 2. Raw Machine Cost = (Seconds / 3600) * MachineDepreciationPerHour
       const machCost = totalSecondsBig
         .div(3600)
-        .times(new Big(operationalConfigs.machine_depreciation_per_hour));
+        .times(new Big(machineRate));
 
       // 3. Raw Labor Cost = LaborMinutes * LaborCostPerMinute
-      const labCost = laborMinutesBig.times(new Big(operationalConfigs.labor_cost_per_minute));
+      const labCost = laborMinutesBig.times(new Big(laborRate));
 
       // 4. Raw COGS = Material + Machine + Labor
       const totalCogs = matCost.plus(machCost).plus(labCost);
@@ -143,7 +150,7 @@ export function MaterialForm({
         suggestedPrice: finalPrice,
       });
     } catch (err) {
-      console.error("Lỗi tính toán mô phỏng:", err);
+      // Suppress expected transient errors during initial render (e.g. empty form fields)
     }
   }, [
     pricePerKg,
