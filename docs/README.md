@@ -40,7 +40,7 @@ nano .env
 ```
 *Hãy thay đổi dòng sau trong `.env`:*
 ```env
-DB_PASSWORD=printcost_dev_password_12345  # ← Đổi thành mật khẩu mạnh của bạn
+DB_PASSWORD=123456  # ← Đổi thành mật khẩu mạnh của bạn
 ```
 
 ### Bước 2: Khởi động Services (2 phút)

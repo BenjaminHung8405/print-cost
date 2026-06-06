@@ -1,291 +1,255 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { Plus, Settings2, ShieldAlert, CheckCircle2, AlertTriangle, HelpCircle } from 'lucide-react';
-import {
-  getMaterials,
-  createMaterial,
-  updateMaterial,
-  deleteMaterial,
-  ApiMaterial
-} from '@/core/api/client';
-import MaterialList from '@/components/materials/MaterialList';
-import MaterialForm from '@/components/materials/MaterialForm';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter
-} from '@/components/ui/dialog';
+import React, { useState, useEffect } from "react";
+import { Plus, RefreshCw, Layers, Coins, TrendingUp, AlertCircle, CheckCircle2, X } from "lucide-react";
+import { ApiMaterial, ApiOperationalConfigs, getMaterials, getOperationalConfigs } from "@/core/api/client";
+import { formatVND, formatDecimal } from "@/core/utils/format";
+import { MaterialList } from "@/components/materials/MaterialList";
+import { MaterialForm } from "@/components/materials/MaterialForm";
+import { Button } from "@/components/ui/button";
+
+interface ToastState {
+  message: string;
+  type: "success" | "error";
+}
 
 export default function MaterialsPage() {
   const [materials, setMaterials] = useState<ApiMaterial[]>([]);
+  const [operationalConfigs, setOperationalConfigs] = useState<ApiOperationalConfigs | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Material Form Drawer state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<ApiMaterial | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Deletion confirmation modal state
-  const [deleteConfirmMaterial, setDeleteConfirmMaterial] = useState<ApiMaterial | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  // Toast feedback state
+  const [toast, setToast] = useState<ToastState | null>(null);
 
-  // Toast / Notification state
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // Fetch all materials on mount
-  const loadData = async () => {
+  // Fetch all required data from backend
+  const fetchData = async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      const data = await getMaterials();
-      setMaterials(data);
+      const [materialsData, configsData] = await Promise.all([
+        getMaterials(),
+        getOperationalConfigs(),
+      ]);
+      setMaterials(materialsData);
+      setOperationalConfigs(configsData);
     } catch (err: any) {
-      showToast('error', err.message || 'Không thể tải danh sách loại nhựa.');
+      setError(err.message || "Không thể tải cấu hình vật liệu từ máy chủ LAN.");
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    fetchData();
   }, []);
 
-  // Show auto-dismiss toast helper
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ type, message });
+  // Trigger auto-dismiss toast
+  const showToast = (message: string, type: "success" | "error") => {
+    setToast({ message, type });
+    // Dismiss after 4 seconds
     setTimeout(() => {
       setToast(null);
-    }, 5000);
-  };
-
-  // Open form modal for creating new material
-  const handleCreateClick = () => {
-    setSelectedMaterial(null);
-    setIsFormOpen(true);
-  };
-
-  // Open form modal for editing material
-  const handleEditClick = (material: ApiMaterial) => {
-    setSelectedMaterial(material);
-    setIsFormOpen(true);
-  };
-
-  // Save changes (Create or Update)
-  const handleFormSubmit = async (payload: Omit<ApiMaterial, 'id'>) => {
-    setIsSubmitting(true);
-    try {
-      if (selectedMaterial) {
-        await updateMaterial(selectedMaterial.id, payload);
-        showToast('success', `Đã cập nhật loại nhựa "${payload.name}" thành công.`);
-      } else {
-        await createMaterial(payload);
-        showToast('success', `Đã thêm loại nhựa "${payload.name}" thành công.`);
-      }
-      setIsFormOpen(false);
-      await loadData();
-    } catch (err: any) {
-      // Re-throw to show error inside the modal form
-      throw err;
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Trigger deletion confirmation modal
-  const handleDeleteClick = (material: ApiMaterial) => {
-    setDeleteConfirmMaterial(material);
-  };
-
-  // Execute deletion call
-  const handleConfirmDelete = async () => {
-    if (!deleteConfirmMaterial) return;
-    setIsDeleting(true);
-    try {
-      await deleteMaterial(deleteConfirmMaterial.id);
-      showToast('success', `Đã xóa loại nhựa "${deleteConfirmMaterial.name}" thành công.`);
-      setDeleteConfirmMaterial(null);
-      await loadData();
-    } catch (err: any) {
-      console.error('Lỗi khi xóa nhựa:', err);
-      // Check if this error is due to FK violation (restrict check)
-      const isLinked = err.message?.includes('liên kết') || err.message?.includes('23503') || err.message?.includes('products');
-      if (isLinked) {
-        showToast(
-          'error',
-          `Không thể xóa loại nhựa "${deleteConfirmMaterial.name}" vì loại nhựa này đang được liên kết trong các Sản phẩm khác. Hãy cập nhật hoặc xóa các sản phẩm đó trước.`
-        );
-      } else {
-        showToast('error', err.message || 'Lỗi hệ thống khi xóa loại nhựa.');
-      }
-    } finally {
-      setIsDeleting(false);
-    }
+    }, 4000);
   };
 
   // KPI calculations
   const totalCount = materials.length;
-  const avgPrice = totalCount > 0 
-    ? Math.round(materials.reduce((sum, item) => sum + item.price_per_kg, 0) / totalCount)
-    : 0;
-  const avgMargin = totalCount > 0
-    ? Math.round((materials.reduce((sum, item) => sum + item.default_margin, 0) / totalCount) * 100)
+  
+  const averagePrice = totalCount > 0 
+    ? Math.round(materials.reduce((sum, m) => sum + Number(m.price_per_kg), 0) / totalCount)
     : 0;
 
+  const averageMargin = totalCount > 0
+    ? materials.reduce((sum, m) => sum + Number(m.default_margin), 0) / totalCount
+    : 0;
+
+  const handleEditMaterial = (material: ApiMaterial) => {
+    setSelectedMaterial(material);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCreateMaterial = () => {
+    setSelectedMaterial(null);
+    setIsDrawerOpen(true);
+  };
+
+  const handleFormSave = () => {
+    setIsDrawerOpen(false);
+    setSelectedMaterial(null);
+    fetchData();
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
-      {/* Toast Alert Banner */}
+    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans antialiased pb-12">
+      
+      {/* 1. Header & Navigation breadcrumbs */}
+      <div className="border-b border-border bg-card/20 py-4 px-6 md:px-8">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+              <span>CẤU HÌNH GỐC</span>
+              <span>/</span>
+              <span className="text-muted-foreground">DANH MỤC NHỰA</span>
+            </div>
+            <h1 className="text-xl md:text-2xl font-mono font-bold tracking-wider text-foreground mt-1.5 uppercase">
+              QUẢN LÝ DANH MỤC NHỰA
+            </h1>
+          </div>
+          
+          <div className="flex items-center gap-3 shrink-0">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={fetchData}
+              className="bg-transparent border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              disabled={isLoading}
+              title="Làm mới bảng"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
+            <Button
+              onClick={handleCreateMaterial}
+              className="bg-emerald-600 dark:bg-emerald-500 hover:bg-emerald-500 dark:hover:bg-emerald-400 text-white font-bold font-sans shadow-md shadow-emerald-950/20 gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              Thêm nhựa mới
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Main Page Content wrapper */}
+      <div className="flex-1 max-w-7xl w-full mx-auto px-6 md:px-8 py-6 space-y-6">
+        
+        {/* KPI metrics row summary */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Card 1: Total plastics */}
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4 relative overflow-hidden group">
+            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center border border-border shrink-0 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+              <Layers className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground font-mono font-bold uppercase tracking-wider block">
+                Tổng số loại nhựa
+              </span>
+              <span className="text-2xl font-mono font-bold text-foreground tracking-wider">
+                {isLoading ? "..." : totalCount}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: Average buy price */}
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4 relative overflow-hidden group">
+            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center border border-border shrink-0 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+              <Coins className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground font-mono font-bold uppercase tracking-wider block">
+                Giá trung bình / kg
+              </span>
+              <span className="text-xl font-mono font-bold text-foreground tracking-wider">
+                {isLoading ? "..." : formatVND(averagePrice)}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Average margin */}
+          <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-4 relative overflow-hidden group">
+            <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center border border-border shrink-0 text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted-foreground font-mono font-bold uppercase tracking-wider block">
+                Biên lợi nhuận TB
+              </span>
+              <span className="text-2xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                {isLoading ? "..." : `${formatDecimal(averageMargin * 100, 1)}%`}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading and Error states or List table content */}
+        {isLoading ? (
+          <div className="border border-border bg-card rounded-xl p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="relative flex items-center justify-center">
+              <RefreshCw className="h-8 w-8 text-muted-foreground animate-spin" />
+            </div>
+            <span className="text-sm text-muted-foreground font-mono">Đang đồng bộ dữ liệu vật liệu từ máy chủ LAN...</span>
+          </div>
+        ) : error ? (
+          <div className="border border-destructive/20 bg-destructive/5 rounded-xl p-8 text-center flex flex-col items-center justify-center space-y-4 max-w-xl mx-auto border-dashed">
+            <AlertCircle className="h-10 w-10 text-destructive" />
+            <div className="space-y-1">
+              <h3 className="font-mono font-bold uppercase text-foreground text-sm">Lỗi đồng bộ dữ liệu</h3>
+              <p className="text-xs text-muted-foreground max-w-md">{error}</p>
+            </div>
+            <Button
+              onClick={fetchData}
+              className="bg-muted hover:bg-muted/80 text-foreground border border-border text-xs py-1.5"
+            >
+              Thử tải lại
+            </Button>
+          </div>
+        ) : (
+          <MaterialList
+            materials={materials}
+            onEdit={handleEditMaterial}
+            onRefresh={fetchData}
+            onSuccessMessage={(msg) => showToast(msg, "success")}
+            onErrorMessage={(msg) => showToast(msg, "error")}
+          />
+        )}
+      </div>
+
+      {/* 3. Form Drawer Component */}
+      {operationalConfigs && (
+        <MaterialForm
+          isOpen={isDrawerOpen}
+          materialData={selectedMaterial}
+          operationalConfigs={operationalConfigs}
+          otherMaterials={materials}
+          onClose={() => {
+            setIsDrawerOpen(false);
+            setSelectedMaterial(null);
+          }}
+          onSave={handleFormSave}
+          onSuccessMessage={(msg) => showToast(msg, "success")}
+          onErrorMessage={(msg) => showToast(msg, "error")}
+        />
+      )}
+
+      {/* 4. Self-dismissing toast feedback system */}
       {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 flex items-start gap-3 p-4 rounded-xl border shadow-lg max-w-md animate-in slide-in-from-bottom-5 duration-300 ${
-            toast.type === 'success'
-              ? 'bg-emerald-950/90 border-emerald-900/60 text-emerald-300 shadow-glow'
-              : 'bg-red-950/90 border-red-900/60 text-red-300'
-          }`}
-        >
-          {toast.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
-          ) : (
-            <ShieldAlert className="w-5 h-5 shrink-0 mt-0.5" />
-          )}
-          <div className="space-y-0.5 text-sm">
-            <h5 className="font-bold tracking-wide">
-              {toast.type === 'success' ? 'THÀNH CÔNG' : 'CÓ LỖI XẢY RA'}
-            </h5>
-            <p className="font-sans leading-relaxed text-slate-200">{toast.message}</p>
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className={`flex items-center gap-2.5 px-4 py-3 rounded-lg border shadow-2xl min-w-72 ${
+            toast.type === "success"
+              ? "bg-emerald-50 dark:bg-emerald-950/90 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200"
+              : "bg-rose-50 dark:bg-rose-950/90 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200"
+          }`}>
+            {toast.type === "success" ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+            )}
+            <span className="text-xs font-sans font-medium flex-1 leading-tight">
+              {toast.message}
+            </span>
+            <button
+              onClick={() => setToast(null)}
+              className="p-0.5 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors"
+            >
+              <X className="h-3 w-3" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
-        <div className="space-y-1">
-          <div className="text-xs font-mono font-bold tracking-widest text-blue-500 uppercase flex items-center gap-1.5">
-            <Settings2 className="w-3.5 h-3.5" />
-            Cấu hình gốc &gt; Danh mục nhựa
-          </div>
-          <h1 className="font-mono text-2xl md:text-3xl font-black tracking-tight text-slate-100 uppercase">
-            QUẢN LÝ DANH MỤC NHỰA
-          </h1>
-          <p className="text-sm text-slate-400 font-sans">
-            Cấu hình đơn giá cuộn nhựa 1kg, hệ số bù hao rủi ro, và biên độ lợi nhuận mặc định để làm cơ sở tính toán giá thành.
-          </p>
-        </div>
-        <button
-          onClick={handleCreateClick}
-          className="h-11 px-6 rounded-md bg-primary hover:bg-primary/95 text-white font-semibold text-sm transition-all shadow-md hover:shadow-glow flex items-center justify-center gap-2 active:scale-98 self-start md:self-center"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Thêm nhựa mới</span>
-        </button>
-      </div>
-
-      {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Card 1 */}
-        <div className="bg-slate-900/40 border border-border p-5 rounded-xl flex flex-col justify-between shadow-sm">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Tổng số loại nhựa
-          </span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-bold text-slate-100">
-              {isLoading ? '...' : totalCount}
-            </span>
-            <span className="text-xs text-slate-500">cuộn nhựa</span>
-          </div>
-        </div>
-
-        {/* Card 2 */}
-        <div className="bg-slate-900/40 border border-border p-5 rounded-xl flex flex-col justify-between shadow-sm">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Giá trung bình / kg
-          </span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-bold text-slate-100">
-              {isLoading ? '...' : avgPrice.toLocaleString('vi-VN')}
-            </span>
-            <span className="text-xs text-slate-500 font-mono">đ</span>
-          </div>
-        </div>
-
-        {/* Card 3 */}
-        <div className="bg-slate-900/40 border border-border p-5 rounded-xl flex flex-col justify-between shadow-sm">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-            Biên lợi nhuận trung bình
-          </span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-bold text-slate-100">
-              {isLoading ? '...' : `${avgMargin}%`}
-            </span>
-            <span className="text-xs text-slate-500">mong muốn</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Material Ledger Table */}
-      <div className="bg-slate-900/10 border border-border p-5 rounded-xl shadow-sm">
-        <MaterialList
-          materials={materials}
-          isLoading={isLoading}
-          onEdit={handleEditClick}
-          onDelete={handleDeleteClick}
-        />
-      </div>
-
-      {/* Create/Edit Modal Dialog */}
-      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="max-w-md bg-slate-950 border border-border p-6 rounded-lg text-slate-100 shadow-lg">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Form Nhựa</DialogTitle>
-            <DialogDescription>Mô tả form nhựa</DialogDescription>
-          </DialogHeader>
-          <MaterialForm
-            material={selectedMaterial}
-            isSubmitting={isSubmitting}
-            onSubmit={handleFormSubmit}
-            onCancel={() => setIsFormOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Deletion Double-Confirm Modal Dialog */}
-      <Dialog open={!!deleteConfirmMaterial} onOpenChange={(open) => !open && setDeleteConfirmMaterial(null)}>
-        <DialogContent className="max-w-sm bg-slate-950 border border-border p-6 rounded-lg text-slate-100 shadow-lg">
-          <DialogHeader className="space-y-3">
-            <div className="w-12 h-12 rounded-full bg-red-950/60 border border-red-900/50 flex items-center justify-center text-red-500 mx-auto">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <DialogTitle className="text-center font-mono text-lg font-bold uppercase tracking-wide text-slate-100">
-              Xác nhận xóa loại nhựa?
-            </DialogTitle>
-            <DialogDescription className="text-center text-sm text-slate-400">
-              Bạn có chắc chắn muốn xóa vĩnh viễn cấu hình của loại nhựa{' '}
-              <strong className="text-slate-200">"{deleteConfirmMaterial?.name}"</strong> khỏi xưởng?
-              Hành động này không thể hoàn tác.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex flex-row gap-3 mt-4 justify-center">
-            <button
-              onClick={() => setDeleteConfirmMaterial(null)}
-              className="flex-1 h-10 rounded-md border border-border text-slate-300 hover:text-slate-100 hover:bg-slate-800 transition-colors text-sm font-semibold"
-              disabled={isDeleting}
-            >
-              Hủy
-            </button>
-            <button
-              onClick={handleConfirmDelete}
-              className="flex-1 h-10 rounded-md bg-red-600 hover:bg-red-500 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-1.5"
-              disabled={isDeleting}
-            >
-              {isDeleting ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <span>Xóa cấu hình</span>
-              )}
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

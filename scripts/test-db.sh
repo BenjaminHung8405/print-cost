@@ -9,7 +9,7 @@
 set -e  # Exit on error
 
 DB_USER="${DB_USER:-admin}"
-DB_PASSWORD="${DB_PASSWORD:-printcost_dev_password_12345}"
+DB_PASSWORD="${DB_PASSWORD:-123456}"
 DB_NAME="${DB_NAME:-printcost_db}"
 CONTAINER_NAME="printcost_db_test"
 

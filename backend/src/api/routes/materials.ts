@@ -7,8 +7,19 @@ const router = Router();
 // [GET] List all materials
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const data = await db('materials').select('*').orderBy('id', 'asc');
-    res.json({ success: true, data });
+    const data = await db('materials')
+      .select([
+        'materials.*',
+        db.raw('EXISTS (SELECT 1 FROM products WHERE products.material_id = materials.id) as is_in_use')
+      ])
+      .orderBy('materials.id', 'asc');
+    
+    const mappedData = data.map(item => ({
+      ...item,
+      is_in_use: item.is_in_use === true || item.is_in_use === 't' || item.is_in_use === 1 || item.is_in_use === '1'
+    }));
+
+    res.json({ success: true, data: mappedData });
   } catch (error) { 
     next(error); 
   }

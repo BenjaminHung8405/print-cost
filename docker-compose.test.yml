@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-admin}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-printcost_dev_password_12345}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
       POSTGRES_DB: ${DB_NAME:-printcost_db}
     ports:
       - "${DB_PORT:-5432}:5432"

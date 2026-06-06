@@ -43,6 +43,7 @@ export interface ApiMaterial {
   price_per_kg: number;
   fail_rate: number;
   default_margin: number;
+  is_in_use?: boolean;
 }
 
 export interface ApiFixedItem {
@@ -141,7 +142,7 @@ export async function getMaterials(): Promise<ApiMaterial[]> {
 
 /** POST /api/materials — create new plastic material */
 export async function createMaterial(
-  payload: Omit<ApiMaterial, 'id'>
+  payload: Omit<ApiMaterial, 'id' | 'is_in_use'>
 ): Promise<ApiMaterial> {
   return apiFetch<ApiMaterial>('/api/materials', {
     method: 'POST',
@@ -149,10 +150,10 @@ export async function createMaterial(
   });
 }
 
-/** PUT /api/materials/:id — update plastic material */
+/** PUT /api/materials/:id — update plastic material details */
 export async function updateMaterial(
   id: number,
-  payload: Omit<ApiMaterial, 'id'>
+  payload: Omit<ApiMaterial, 'id' | 'is_in_use'>
 ): Promise<ApiMaterial> {
   return apiFetch<ApiMaterial>(`/api/materials/${id}`, {
     method: 'PUT',

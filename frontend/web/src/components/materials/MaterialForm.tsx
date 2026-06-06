@@ -1,353 +1,623 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useTransition } from 'react';
-import { Coins, TrendingUp, Percent, Sparkles, AlertTriangle } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ApiMaterial, ApiOperationalConfigs, createMaterial, updateMaterial } from "@/core/api/client";
+import { formatDecimal, formatVND, parseFloatDecimal, parseVNDInteger } from "@/core/utils/format";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import Big from "big.js";
+import { AlertTriangle, Coins, Cpu, Sparkles, TrendingUp, X } from "lucide-react";
+import React, { useEffect, useState } from "react";
 
-interface ApiMaterial {
-  id: number;
-  name: string;
-  price_per_kg: number;
-  fail_rate: number;
-  default_margin: number;
-}
+// Configure Big.js to round half-up globally (RM = 1)
+Big.RM = 1;
 
 interface MaterialFormProps {
-  material: ApiMaterial | null;
-  onSubmit: (data: Omit<ApiMaterial, 'id'>) => Promise<void>;
-  onCancel: () => void;
-  isSubmitting: boolean;
+  isOpen: boolean;
+  materialData?: ApiMaterial | null; // Null means creating new
+  operationalConfigs: ApiOperationalConfigs;
+  otherMaterials: ApiMaterial[];
+  onClose: () => void;
+  onSave: () => void;
+  onSuccessMessage: (msg: string) => void;
+  onErrorMessage: (msg: string) => void;
 }
 
-// System round_to_100 logic
-function roundTo100(value: number): number {
-  if (value < 0) return 0;
-  return Math.round(value / 100) * 100;
+interface SimulationParams {
+  weightGram: string;
+  printTimeHours: string;
+  printTimeMinutes: string;
+  laborTimeMinutes: string;
 }
 
-export default function MaterialForm({
-  material,
-  onSubmit,
-  onCancel,
-  isSubmitting,
+export function MaterialForm({
+  isOpen,
+  materialData,
+  operationalConfigs,
+  otherMaterials,
+  onClose,
+  onSave,
+  onSuccessMessage,
+  onErrorMessage,
 }: MaterialFormProps) {
-  // Input states
-  const [name, setName] = useState('');
-  const [priceText, setPriceText] = useState('');
-  const [failRateText, setFailRateText] = useState('1.00');
-  const [marginText, setMarginText] = useState('');
+  // Form input states (UI scale: defaultMargin in %)
+  const [name, setName] = useState(materialData?.name || "");
+  const [pricePerKg, setPricePerKg] = useState(materialData?.price_per_kg || 0);
+  const [failRate, setFailRate] = useState(materialData?.fail_rate?.toString() || "1.10");
+  const [defaultMargin, setDefaultMargin] = useState(
+    materialData ? Math.round(materialData.default_margin * 100) : 40
+  );
 
-  // Validation states
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  // Price input focus state
+  const [isPriceFocused, setIsPriceFocused] = useState(false);
+  const [rawPriceInput, setRawPriceInput] = useState(materialData?.price_per_kg?.toString() || "0");
 
-  // Load editing material values
+  // Fail rate input focus state
+  const [isFailRateFocused, setIsFailRateFocused] = useState(false);
+  const [rawFailRateInput, setRawFailRateInput] = useState(materialData?.fail_rate?.toString() || "1.10");
+
+  // Loading/submitting state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Playground simulation parameters (State 2)
+  // Default values loaded from Keycap preset baseline
+  const [simParams, setSimParams] = useState<SimulationParams>({
+    weightGram: "16.88",
+    printTimeHours: "1",
+    printTimeMinutes: "35",
+    laborTimeMinutes: "0",
+  });
+
+  // Calculation Results state (State 3)
+  const [simResult, setSimResult] = useState({
+    materialCost: 0,
+    machineCost: 0,
+    laborCost: 0,
+    cogs: 0,
+    suggestedPrice: 0,
+  });
+
+  // Sync state if materialData changes
   useEffect(() => {
-    if (material) {
-      setName(material.name);
-      setPriceText(Math.round(material.price_per_kg).toLocaleString('vi-VN'));
-      setFailRateText(material.fail_rate.toString());
-      setMarginText(Math.round(material.default_margin * 100).toString());
-    } else {
-      setName('');
-      setPriceText('');
-      setFailRateText('1.00');
-      setMarginText('40'); // default 40%
-    }
-    setErrors({});
-    setSubmitError(null);
-  }, [material]);
+    setName(materialData?.name || "");
+    setPricePerKg(materialData?.price_per_kg || 0);
+    setRawPriceInput(materialData?.price_per_kg?.toString() || "0");
+    setFailRate(materialData?.fail_rate?.toString() || "1.10");
+    setRawFailRateInput(materialData?.fail_rate?.toString() || "1.10");
+    setDefaultMargin(materialData ? Math.round(materialData.default_margin * 100) : 40);
+  }, [materialData]);
 
-  // Numeric parsing helpers
-  const parsePrice = (text: string): number => {
-    const cleanStr = text.replace(/\D/g, '');
-    return cleanStr ? parseInt(cleanStr, 10) : 0;
-  };
+  // Pricing calculator using big.js (No intermediate rounding)
+  useEffect(() => {
+    try {
+      const priceVal = parseVNDInteger(isPriceFocused ? rawPriceInput : pricePerKg.toString()) || 0;
+      const pricePerKgBig = new Big(priceVal);
 
-  const parseFailRate = (text: string): number => {
-    const val = parseFloat(text);
-    return isNaN(val) ? 1.00 : val;
-  };
+      const failRateVal = parseFloatDecimal(isFailRateFocused ? rawFailRateInput : failRate) || 1.0;
+      const failRateBig = new Big(failRateVal);
 
-  const parseMargin = (text: string): number => {
-    const val = parseFloat(text);
-    return isNaN(val) ? 0 : val / 100;
-  };
+      const marginBig = new Big(defaultMargin).div(100);
+      
+      const weightVal = parseFloatDecimal(simParams.weightGram) || 0;
+      const weightBig = new Big(weightVal);
 
-  // Live computed variables for simulator
-  const pricePerKg = parsePrice(priceText);
-  const failRate = parseFailRate(failRateText);
-  const marginDecimal = parseMargin(marginText);
+      // Convert hours and minutes to seconds
+      const hoursVal = parseInt(simParams.printTimeHours, 10) || 0;
+      const minutesVal = parseInt(simParams.printTimeMinutes, 10) || 0;
+      const totalSeconds = (hoursVal * 3600) + (minutesVal * 60);
+      const totalSecondsBig = new Big(totalSeconds);
 
-  const pricePerGram = pricePerKg / 1000;
-  const effectivePricePerGram = pricePerGram * failRate;
-  
-  // Simulation for 100g sample product
-  const simWeight = 100;
-  const simCogs = simWeight * effectivePricePerGram;
-  
-  // Division by zero safeguard
-  const marginDivisor = 1 - marginDecimal;
-  const rawSuggestedPrice = marginDivisor > 0 ? simCogs / marginDivisor : 0;
-  const finalSuggestedPrice = roundTo100(rawSuggestedPrice);
+      const laborMinutesVal = parseInt(simParams.laborTimeMinutes, 10) || 0;
+      const laborMinutesBig = new Big(laborMinutesVal);
 
-  // Custom VND input formatter with cursor position preservation
-  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target;
-    const originalSelectionStart = input.selectionStart ?? 0;
-    const originalValue = input.value;
+      // 1. Raw Material Cost = Weight * (PricePerKg / 1000) * FailRate
+      const matCost = weightBig.times(pricePerKgBig.div(1000)).times(failRateBig);
 
-    const rawDigits = originalValue.replace(/\D/g, '');
-    const formattedValue = rawDigits ? Number(rawDigits).toLocaleString('vi-VN') : '';
+      // 2. Raw Machine Cost = (Seconds / 3600) * MachineDepreciationPerHour
+      const machCost = totalSecondsBig
+        .div(3600)
+        .times(new Big(operationalConfigs.machine_depreciation_per_hour));
 
-    const prefixDigitsCount = originalValue.slice(0, originalSelectionStart).replace(/\D/g, '').length;
+      // 3. Raw Labor Cost = LaborMinutes * LaborCostPerMinute
+      const labCost = laborMinutesBig.times(new Big(operationalConfigs.labor_cost_per_minute));
 
-    let newSelectionIndex = 0;
-    let digitsFound = 0;
-    for (let i = 0; i < formattedValue.length; i++) {
-      if (formattedValue[i] !== '.') {
-        digitsFound++;
+      // 4. Raw COGS = Material + Machine + Labor
+      const totalCogs = matCost.plus(machCost).plus(labCost);
+
+      // 5. Suggested price = round_to_100(COGS / (1 - Margin))
+      let finalPrice = 0;
+      if (marginBig.lt(1)) {
+        const rawPrice = totalCogs.div(new Big(1).sub(marginBig));
+        // System round_to_100 logic: Round half-up to nearest 100 VND
+        const divided = rawPrice.div(100);
+        const rounded = divided.round(0); // big.js global RM = 1 (ROUND_HALF_UP)
+        finalPrice = rounded.times(100).toNumber();
       }
-      if (digitsFound <= prefixDigitsCount) {
-        newSelectionIndex = i + 1;
-      } else {
-        break;
-      }
+
+      setSimResult({
+        materialCost: matCost.toNumber(),
+        machineCost: machCost.toNumber(),
+        laborCost: labCost.toNumber(),
+        cogs: totalCogs.toNumber(),
+        suggestedPrice: finalPrice,
+      });
+    } catch (err) {
+      console.error("Lỗi tính toán mô phỏng:", err);
     }
+  }, [
+    pricePerKg,
+    rawPriceInput,
+    isPriceFocused,
+    failRate,
+    rawFailRateInput,
+    isFailRateFocused,
+    defaultMargin,
+    simParams,
+    operationalConfigs
+  ]);
 
-    setPriceText(formattedValue);
-
-    requestAnimationFrame(() => {
-      input.setSelectionRange(newSelectionIndex, newSelectionIndex);
+  // Load baseline preset configuration parameters
+  const handleLoadPreset = (weight: string, hours: string, minutes: string, labor: string) => {
+    setSimParams({
+      weightGram: weight,
+      printTimeHours: hours,
+      printTimeMinutes: minutes,
+      laborTimeMinutes: labor,
     });
   };
 
-  // Form validations
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
+  // Forgiving input time format auto-normalization on blur
+  const handleTimeBlur = () => {
+    const hoursVal = parseInt(simParams.printTimeHours, 10) || 0;
+    const minutesVal = parseInt(simParams.printTimeMinutes, 10) || 0;
 
-    if (!name.trim()) {
-      newErrors.name = 'Tên loại nhựa không được để trống';
-    } else if (name.length > 50) {
-      newErrors.name = 'Tên loại nhựa không dài quá 50 ký tự';
+    if (minutesVal >= 60) {
+      const extraHours = Math.floor(minutesVal / 60);
+      const remainingMinutes = minutesVal % 60;
+      setSimParams((prev) => ({
+        ...prev,
+        printTimeHours: (hoursVal + extraHours).toString(),
+        printTimeMinutes: remainingMinutes.toString(),
+      }));
     }
-
-    const priceNum = parsePrice(priceText);
-    if (!priceText || priceNum <= 0) {
-      newErrors.price_per_kg = 'Giá mua phải lớn hơn 0 VND';
-    }
-
-    const rateNum = parseFailRate(failRateText);
-    if (isNaN(rateNum) || rateNum < 1.00) {
-      newErrors.fail_rate = 'Tỷ lệ hỏng phải lớn hơn hoặc bằng 1.00';
-    }
-
-    const marginNum = parseFloat(marginText);
-    if (isNaN(marginNum) || marginNum < 0) {
-      newErrors.default_margin = 'Biên lợi nhuận phải lớn hơn hoặc bằng 0%';
-    } else if (marginNum >= 100) {
-      newErrors.default_margin = 'Biên lợi nhuận tối đa là 99% để tránh lỗi chia cho 0';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
   };
 
-  const handleFormSubmit = async (e: React.FormEvent) => {
+  // Handle Focus on Price Input
+  const handlePriceFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsPriceFocused(true);
+    setRawPriceInput(pricePerKg === 0 ? "" : pricePerKg.toString());
+    // Auto-select text inside the input to support quick overwrite
+    setTimeout(() => {
+      e.target.select();
+    }, 50);
+  };
+
+  // Handle Blur on Price Input
+  const handlePriceBlur = () => {
+    setIsPriceFocused(false);
+    const parsedValue = parseVNDInteger(rawPriceInput);
+    setPricePerKg(parsedValue);
+    setRawPriceInput(parsedValue.toString());
+  };
+
+  // Handle Focus on Fail Rate Input
+  const handleFailRateFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFailRateFocused(true);
+    setRawFailRateInput(failRate);
+    setTimeout(() => {
+      e.target.select();
+    }, 50);
+  };
+
+  // Handle Blur on Fail Rate Input
+  const handleFailRateBlur = () => {
+    setIsFailRateFocused(false);
+    const parsed = parseFloatDecimal(rawFailRateInput);
+    const num = isNaN(parsed) || parsed < 1.0 ? 1.0 : parsed;
+    setFailRate(num.toString());
+    setRawFailRateInput(num.toString());
+  };
+
+  // Handle Form Submission
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitError(null);
+    if (!name.trim()) {
+      onErrorMessage("Tên loại nhựa không được phép để trống");
+      return;
+    }
+    if (pricePerKg <= 0) {
+      onErrorMessage("Giá nhựa phải lớn hơn 0");
+      return;
+    }
+    const failRateNum = parseFloatDecimal(failRate);
+    if (isNaN(failRateNum) || failRateNum < 1.00) {
+      onErrorMessage("Hệ số hao hụt (Fail Rate) phải lớn hơn hoặc bằng 1.00");
+      return;
+    }
+    if (defaultMargin < 0 || defaultMargin > 100) {
+      onErrorMessage("Biên lợi nhuận phải từ 0% đến 100%");
+      return;
+    }
 
-    if (!validateForm()) return;
-
+    setIsSubmitting(true);
     try {
-      await onSubmit({
+      // Scale Transform: convert default_margin percentage (e.g. 40) to decimal (0.40) for database
+      const marginDecimal = new Big(defaultMargin).div(100).toNumber();
+      const payload = {
         name: name.trim(),
-        price_per_kg: parsePrice(priceText),
-        fail_rate: parseFailRate(failRateText),
-        default_margin: parseMargin(marginText),
-      });
+        price_per_kg: pricePerKg,
+        fail_rate: failRateNum,
+        default_margin: marginDecimal,
+      };
+
+      if (materialData) {
+        await updateMaterial(materialData.id, payload);
+        onSuccessMessage(`Đã cập nhật loại nhựa ${name.trim()} thành công.`);
+      } else {
+        await createMaterial(payload);
+        onSuccessMessage(`Đã tạo loại nhựa ${name.trim()} thành công.`);
+      }
+      onSave();
     } catch (err: any) {
-      setSubmitError(err.message || 'Lỗi hệ thống khi lưu loại nhựa');
+      onErrorMessage(err.message || "Không thể lưu thông tin nhựa. Vui lòng kiểm tra lại.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const parsedFailRate = parseFloat(failRate);
 
   return (
-    <form onSubmit={handleFormSubmit} className="space-y-6">
-      <h3 className="font-mono text-lg font-semibold tracking-wider text-slate-100 border-b border-border pb-3">
-        {material ? 'CẬP NHẬT THÔNG TIN NHỰA' : 'THÊM MỚI LOẠI NHỰA IN'}
-      </h3>
-
-      {submitError && (
-        <div className="flex gap-2 items-start p-3 bg-red-950/40 border border-red-900/50 rounded-lg text-red-400 text-sm">
-          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
-          <span>{submitError}</span>
-        </div>
-      )}
-
-      <div className="space-y-4">
-        {/* Name input */}
-        <div className="space-y-1">
-          <label htmlFor="material-name" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Tên loại nhựa <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="material-name"
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Ví dụ: PLA, PETG, ABS-Carbon"
-            className="w-full h-11 px-4 rounded-md border border-border bg-slate-900/60 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-            disabled={isSubmitting}
-          />
-          {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-        </div>
-
-        {/* Price input */}
-        <div className="space-y-1">
-          <label htmlFor="material-price" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Giá mua cuộn 1kg (VND) <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
-            <input
-              id="material-price"
-              type="text"
-              value={priceText}
-              onChange={handlePriceChange}
-              placeholder="Ví dụ: 250.000"
-              className="w-full h-11 pl-4 pr-12 rounded-md border border-border bg-slate-900/60 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-mono"
-              disabled={isSubmitting}
-            />
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500">đ</span>
-          </div>
-          {errors.price_per_kg && <p className="text-xs text-red-500 mt-1">{errors.price_per_kg}</p>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {/* Fail Rate input */}
-          <div className="space-y-1">
-            <label htmlFor="material-fail-rate" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Tỷ lệ hỏng (Fail Rate) <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="material-fail-rate"
-              type="number"
-              step="0.01"
-              min="1.00"
-              value={failRateText}
-              onChange={(e) => setFailRateText(e.target.value)}
-              placeholder="1.00"
-              className="w-full h-11 px-4 rounded-md border border-border bg-slate-900/60 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-mono"
-              disabled={isSubmitting}
-            />
-            <p className="text-[10px] text-slate-500 italic mt-0.5">Mặc định: 1.00 (Không hao hụt)</p>
-            {errors.fail_rate && <p className="text-xs text-red-500 mt-1">{errors.fail_rate}</p>}
-          </div>
-
-          {/* Default Margin input */}
-          <div className="space-y-1">
-            <label htmlFor="material-margin" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Lợi nhuận mặc định (%) <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <input
-                id="material-margin"
-                type="number"
-                min="0"
-                max="99"
-                value={marginText}
-                onChange={(e) => setMarginText(e.target.value)}
-                placeholder="40"
-                className="w-full h-11 pl-4 pr-8 rounded-md border border-border bg-slate-900/60 text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all font-mono"
-                disabled={isSubmitting}
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-500">%</span>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogPrimitive.Portal>
+        {/* Darkened backdrop overlay */}
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
+        
+        {/* Drawer slide-over content box */}
+        <DialogPrimitive.Content
+          onPointerDownOutside={(e) => e.preventDefault()} // Block clicks outside from closing drawer
+          className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-4xl border-l border-border bg-card text-card-foreground shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right h-screen flex flex-col focus:outline-none"
+        >
+          {/* Drawer Header */}
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <div>
+              <DialogPrimitive.Title className="text-lg font-mono font-bold tracking-wider text-foreground uppercase">
+                {materialData ? "CHỈNH SỬA THÔNG SỐ NHỰA" : "THÊM LOẠI NHỰA MỚI"}
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description className="text-xs text-muted-foreground mt-1 font-sans">
+                {materialData
+                  ? `Chỉnh sửa cấu hình phôi nhựa cho mã ID: #${materialData.id}`
+                  : "Cấu hình chủng loại, giá mua và biên lợi nhuận mặc định để phân tích giá."}
+              </DialogPrimitive.Description>
             </div>
-            <p className="text-[10px] text-slate-500 italic mt-0.5">Giới hạn: 0% đến 99%</p>
-            {errors.default_margin && <p className="text-xs text-red-500 mt-1">{errors.default_margin}</p>}
-          </div>
-        </div>
-      </div>
-
-      {/* Live Pricing Simulation Playground */}
-      <div className="bg-slate-950 border border-slate-900 p-4 rounded-xl space-y-3 shadow-inner">
-        <div className="flex justify-between items-center border-b border-slate-900 pb-2">
-          <h4 className="font-mono text-xs font-bold text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            Giả lập giá vốn & bán lẻ (100g)
-          </h4>
-          <span className="text-[10px] font-mono text-zinc-500 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-            Real-Time Engine
-          </span>
-        </div>
-
-        <div className="space-y-1.5 text-xs">
-          <div className="flex justify-between">
-            <span className="text-zinc-200">Giá nhựa thô/gram:</span>
-            <span className="font-mono text-slate-300">
-              {pricePerKg > 0 ? (pricePerGram).toFixed(2) : '0'} đ/g
-            </span>
+            <DialogPrimitive.Close className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+              <X className="h-5 w-5" />
+              <span className="sr-only">Đóng</span>
+            </DialogPrimitive.Close>
           </div>
 
-          <div className="flex justify-between">
-            <span className="text-zinc-200">Hệ số bù hao:</span>
-            <span className="font-mono text-slate-300">x{failRate.toFixed(2)}</span>
+          {/* Drawer Scrollable Body Area (split columns on desktop) */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-8">
+            
+            {/* Left Column: Form Fields */}
+            <form onSubmit={handleSubmit} className="space-y-5 flex flex-col justify-between h-full lg:pr-2">
+              <div className="space-y-5">
+                {/* 1. Name */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="material-name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Tên loại nhựa
+                  </Label>
+                  <Input
+                    id="material-name"
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ví dụ: PLA Carbon, PETG Matte"
+                    className=""
+                    disabled={isSubmitting}
+                    autoComplete="off"
+                    required
+                  />
+                </div>
+
+                {/* 2. Purchase Price */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="material-price" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Giá mua gốc / kg (VND)
+                  </Label>
+                  <div className="w-44"> {/* Locked width to prevent layout shifts */}
+                    <Input
+                      id="material-price"
+                      type={isPriceFocused ? "number" : "text"}
+                      value={isPriceFocused ? rawPriceInput : formatVND(pricePerKg)}
+                      onFocus={handlePriceFocus}
+                      onBlur={handlePriceBlur}
+                      onChange={(e) => setRawPriceInput(e.target.value)}
+                      placeholder="0 đ"
+                      className="text-right font-mono"
+                      disabled={isSubmitting}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-mono block">
+                    Tương đương: <span className="text-emerald-600 dark:text-emerald-400 font-bold">{formatDecimal(pricePerKg / 1000, 0)} đ/gram</span> giá vốn thô
+                  </span>
+                </div>
+
+                {/* 3. Fail Rate */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="material-failrate" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Hệ số hao hụt (Fail Rate)
+                  </Label>
+                  <div className="w-44">
+                    <Input
+                      id="material-failrate"
+                      type="text"
+                      value={
+                        isFailRateFocused
+                          ? rawFailRateInput
+                          : `${formatDecimal(parseFloatDecimal(failRate) || 1.0, 2)}x`
+                      }
+                      onFocus={handleFailRateFocus}
+                      onBlur={handleFailRateBlur}
+                      onChange={(e) => setRawFailRateInput(e.target.value)}
+                      placeholder="1.10x"
+                      className="text-right font-mono"
+                      disabled={isSubmitting}
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
+                  {/* Soft validation warning message if multiplier exceeds 2.0x */}
+                  {!isNaN(parsedFailRate) && parsedFailRate > 2.00 && (
+                    <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 mt-1">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span className="text-[10px] leading-tight font-sans">
+                        Hao hụt đang lớn hơn 2.00 (gấp đôi). Hãy kiểm tra định dạng số thập phân (Ví dụ: 1.10).
+                      </span>
+                    </div>
+                  )}
+                  <span className="text-[10px] text-muted-foreground block">
+                    Hệ số bù hao cho lỗi in ấn (1.10 = bù 10% khối lượng).
+                  </span>
+                </div>
+
+                {/* 4. Margin Percentage */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="material-margin" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Biên lợi nhuận mặc định (%)
+                    </Label>
+                    <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">{defaultMargin}%</span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <input
+                      id="material-margin"
+                      type="range"
+                      min="0"
+                      max="90"
+                      step="5"
+                      value={defaultMargin}
+                      onChange={(e) => setDefaultMargin(parseInt(e.target.value, 10))}
+                      className="flex-1 accent-emerald-600 dark:accent-emerald-400 h-1.5 bg-muted rounded-lg appearance-none cursor-pointer"
+                      disabled={isSubmitting}
+                    />
+                    <div className="w-16">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="99"
+                        value={defaultMargin}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          setDefaultMargin(isNaN(val) ? 0 : Math.min(Math.max(val, 0), 99));
+                        }}
+                        className="text-center font-mono"
+                        disabled={isSubmitting}
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Action Buttons (Left column bottom) */}
+              <div className="flex items-center justify-end gap-3 pt-6 border-t border-border mt-6 lg:mt-auto">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="bg-transparent border-border text-muted-foreground hover:bg-muted hover:text-foreground font-sans"
+                  disabled={isSubmitting}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-emerald-600 text-white hover:bg-emerald-500 font-sans font-bold shadow-md shadow-emerald-950/20"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Đang xử lý..." : materialData ? "Cập nhật" : "Lưu loại nhựa"}
+                </Button>
+              </div>
+            </form>
+
+            {/* Right Column: Simulation Playground & Reference Panel */}
+            <div className="space-y-5 lg:pl-4 lg:border-l lg:border-border">
+              
+              {/* Simulation Sandbox Panel */}
+              <div className="bg-card p-4 rounded-xl border border-border space-y-4">
+                <div className="flex items-center gap-2 text-foreground border-b border-border pb-2">
+                  <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <h3 className="text-xs font-mono font-bold uppercase tracking-widest">
+                    SANDBOX GIẢ LẬP GIÁ BÁN
+                  </h3>
+                </div>
+
+                {/* Simulation input parameters */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Khối lượng</span>
+                    <div className="relative flex items-center">
+                      <Input
+                        type="text"
+                        value={simParams.weightGram}
+                        onChange={(e) => setSimParams({ ...simParams, weightGram: e.target.value })}
+                        className="text-right pr-6 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
+                        autoComplete="off"
+                      />
+                      <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">g</span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Thời gian in</span>
+                    <div className="flex items-center gap-1">
+                      <div className="relative flex items-center flex-1">
+                        <Input
+                          type="text"
+                          value={simParams.printTimeHours}
+                          onBlur={handleTimeBlur}
+                          onChange={(e) => setSimParams({ ...simParams, printTimeHours: e.target.value })}
+                          className="text-right pr-5 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
+                          autoComplete="off"
+                        />
+                        <span className="absolute right-1.5 text-[9px] font-mono text-muted-foreground/60">h</span>
+                      </div>
+                      <div className="relative flex items-center flex-1">
+                        <Input
+                          type="text"
+                          value={simParams.printTimeMinutes}
+                          onBlur={handleTimeBlur}
+                          onChange={(e) => setSimParams({ ...simParams, printTimeMinutes: e.target.value })}
+                          className="text-right pr-5 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
+                          autoComplete="off"
+                        />
+                        <span className="absolute right-1.5 text-[9px] font-mono text-muted-foreground/60">m</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Công thợ</span>
+                    <div className="relative flex items-center">
+                      <Input
+                        type="text"
+                        value={simParams.laborTimeMinutes}
+                        onChange={(e) => setSimParams({ ...simParams, laborTimeMinutes: e.target.value })}
+                        className="text-right pr-6 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
+                        autoComplete="off"
+                      />
+                      <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">m</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preset badges selection */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] text-muted-foreground uppercase font-semibold">Mẫu giả định nhanh</span>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleLoadPreset("16.88", "1", "35", "0")}
+                      className="px-2 py-1 bg-muted hover:bg-muted/80 border border-border rounded text-[10px] font-mono text-foreground transition-colors text-left"
+                    >
+                      🗳️ Keycap: 16.88g - 1h35m - 0m
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLoadPreset("50.00", "3", "00", "10")}
+                      className="px-2 py-1 bg-muted hover:bg-muted/80 border border-border rounded text-[10px] font-mono text-foreground transition-colors text-left"
+                    >
+                      🔑 Móc khóa: 50g - 3h00m - 10m
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLoadPreset("200.00", "12", "00", "30")}
+                      className="px-2 py-1 bg-muted hover:bg-muted/80 border border-border rounded text-[10px] font-mono text-foreground transition-colors text-left"
+                    >
+                      🧸 Mô hình: 200g - 12h00m - 30m
+                    </button>
+                  </div>
+                </div>
+
+                {/* Calculation Receipt breakdown (Flows statically on mobile screen to prevent IME keyboard collisions) */}
+                <div className="bg-muted/50 border border-border rounded-lg p-3 space-y-2.5 relative">
+                  <div className="flex justify-between items-center text-[10px] text-muted-foreground border-b border-border pb-1.5 font-mono">
+                    <span>HÓA ĐƠN CHI PHÍ GIẢ ĐỊNH</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">{name || "Chưa đặt tên"}</span>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs font-mono">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span className="flex items-center gap-1"><Coins className="h-3 w-3 text-muted-foreground/60" /> Nhựa ({simParams.weightGram}g x fail):</span>
+                      <span>{formatVND(simResult.materialCost)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span className="flex items-center gap-1"><Cpu className="h-3 w-3 text-muted-foreground/60" /> Máy in ({simParams.printTimeHours}h{simParams.printTimeMinutes}m):</span>
+                      <span>{formatVND(simResult.machineCost)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span className="flex items-center gap-1"><Cpu className="h-3 w-3 text-muted-foreground/60" /> Nhân công ({simParams.laborTimeMinutes}m):</span>
+                      <span>{formatVND(simResult.laborCost)}</span>
+                    </div>
+                    
+                    <div className="border-t border-dashed border-border my-1"></div>
+                    
+                    <div className="flex justify-between text-foreground font-bold">
+                      <span>GIÁ VỐN GIẢ ĐỊNH (COGS):</span>
+                      <span>{formatVND(simResult.cogs)}</span>
+                    </div>
+                  </div>
+
+                  {/* SUGGESTED PRICE PROMINENT DISPLAY */}
+                  <div className="bg-emerald-950/25 dark:bg-emerald-950/20 border border-emerald-600/20 dark:border-emerald-900/30 rounded p-2.5 mt-2 flex flex-col items-center justify-center text-center">
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono font-bold tracking-widest uppercase flex items-center gap-1.5 mb-1">
+                      <TrendingUp className="h-3.5 w-3.5" /> GIÁ BÁN GỢI Ý (+{defaultMargin}%)
+                    </span>
+                    <span className="text-xl font-mono font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">
+                      {formatVND(simResult.suggestedPrice)}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground font-mono mt-0.5">
+                      Đã làm tròn đến 100đ gần nhất (Round Half-Up)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Drawer Price Reference Widget (Prevents comparison blindspots) */}
+              <div className="bg-muted/30 border border-border p-4 rounded-xl space-y-2">
+                <span className="text-[10px] text-muted-foreground font-mono font-bold uppercase tracking-wider block">
+                  THAM CHIẾU GIÁ XƯỞNG HIỆN TẠI
+                </span>
+                
+                {otherMaterials.length === 0 ? (
+                  <span className="text-xs text-muted-foreground block italic">Không có dữ liệu nhựa khác</span>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 max-h-24 overflow-y-auto pr-1">
+                    {otherMaterials
+                      .filter(m => m.id !== materialData?.id)
+                      .map((m) => (
+                        <div key={m.id} className="flex items-center justify-between bg-muted/40 px-2 py-1 rounded border border-border">
+                          <span className="text-xs text-foreground font-sans truncate pr-2" title={m.name}>
+                            {m.name}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground font-mono shrink-0">
+                            {formatDecimal(m.price_per_kg / 1000, 0)}k/g
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
           </div>
 
-          <div className="flex justify-between border-b border-dashed border-slate-900 pb-1.5">
-            <span className="text-zinc-200">Giá thực tế/gram:</span>
-            <span className="font-mono text-slate-300">
-              {pricePerKg > 0 ? (effectivePricePerGram).toFixed(2) : '0'} đ/g
-            </span>
-          </div>
-
-          <div className="flex justify-between pt-1">
-            <span className="text-zinc-200 font-medium">Giá vốn thô (COGS 100g):</span>
-            <span className="font-mono text-emerald-400 font-semibold text-sm">
-              {pricePerKg > 0 ? Math.round(simCogs).toLocaleString('vi-VN') : '0'} đ
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center pt-1 border-t border-slate-900 mt-1">
-            <span className="text-zinc-200 font-bold">Giá bán gợi ý (100g):</span>
-            {marginDecimal >= 1 ? (
-              <span className="font-mono text-red-500 font-bold">NaN (Biên độ quá lớn)</span>
-            ) : (
-              <span className="font-mono text-emerald-400 font-bold text-base bg-emerald-950/20 px-2 py-0.5 rounded border border-emerald-900/20 shadow-glow">
-                {pricePerKg > 0 ? finalSuggestedPrice.toLocaleString('vi-VN') : '0'} đ
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-slate-900/40 p-2 rounded text-[10px] text-zinc-500 font-mono leading-relaxed border border-slate-900/60">
-          * Công thức: COGS = (100g * Giá/g * Fail Rate). Giá bán lẻ gợi ý được làm tròn đến 100đ gần nhất (round_to_100).
-        </div>
-      </div>
-
-      {/* Buttons */}
-      <div className="flex justify-end gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-10 px-4 rounded-md border border-border text-slate-300 hover:text-slate-100 hover:bg-slate-800 transition-all text-sm font-semibold"
-          disabled={isSubmitting}
-        >
-          Hủy bỏ
-        </button>
-        <button
-          type="submit"
-          className="h-10 px-6 rounded-md bg-primary hover:bg-primary/90 text-white font-semibold text-sm transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              <span>Đang lưu...</span>
-            </>
-          ) : (
-            <span>Lưu cấu hình</span>
-          )}
-        </button>
-      </div>
-    </form>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
