@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, ExternalLink, AlertTriangle, Lock } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -73,6 +74,7 @@ export function OrdersListPage() {
 
   // ── Ironclad Lock: cancellation confirmation dialog ───────────────────────
   const [pendingCancellation, setPendingCancellation] = useState<PendingCancellation | null>(null)
+  const [cancelWithLoss, setCancelWithLoss] = useState<boolean>(false)
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
 
   // ── Inline error / success banner ─────────────────────────────────────────
@@ -155,22 +157,23 @@ export function OrdersListPage() {
       } finally {
         setIsUpdatingStatus(false)
         setPendingCancellation(null)
+        setCancelWithLoss(false)
       }
     },
     [fetchOrders, selectedOrder?.id]
   )
 
-  /** User confirms cancellation WITH loss counting */
-  const handleConfirmCancelWithLoss = useCallback(() => {
+  /** User confirms cancellation with current options */
+  const handleConfirmCancellation = useCallback(() => {
     if (!pendingCancellation) return
-    void commitStatusChange(pendingCancellation.orderId, 'cancelled', true)
-  }, [pendingCancellation, commitStatusChange])
+    void commitStatusChange(pendingCancellation.orderId, 'cancelled', cancelWithLoss)
+  }, [pendingCancellation, cancelWithLoss, commitStatusChange])
 
-  /** User confirms cancellation WITHOUT loss counting */
-  const handleConfirmCancelNoLoss = useCallback(() => {
-    if (!pendingCancellation) return
-    void commitStatusChange(pendingCancellation.orderId, 'cancelled', false)
-  }, [pendingCancellation, commitStatusChange])
+  /** Close cancellation dialog and reset selection state */
+  const handleCloseCancellationDialog = useCallback(() => {
+    setPendingCancellation(null)
+    setCancelWithLoss(false)
+  }, [])
 
   const handleViewDetails = useCallback((order: ApiOrder) => {
     setSelectedOrder(order)
@@ -420,7 +423,7 @@ export function OrdersListPage() {
         {/* ── Ironclad Lock: Loss Counting Confirmation Dialog ─────────────── */}
         <Dialog
           open={!!pendingCancellation}
-          onOpenChange={(open) => { if (!open) setPendingCancellation(null) }}
+          onOpenChange={(open) => { if (!open) handleCloseCancellationDialog() }}
         >
           <DialogContent className="sm:max-w-md bg-card border-border text-foreground">
             <DialogHeader>
@@ -428,46 +431,107 @@ export function OrdersListPage() {
                 <AlertTriangle className="h-5 w-5 text-amber-500" />
                 Xác nhận Hủy Đơn Hàng
               </DialogTitle>
-              <DialogDescription className="text-muted-foreground pt-2">
-                Bạn có muốn tính hao hụt nhựa của đơn hàng này vào chi phí vận hành xưởng không?
+              <DialogDescription className="text-muted-foreground pt-1">
+                Vui lòng cấu hình chi phí nguyên liệu hao hụt cho đơn hàng in 3D này trước khi xác nhận hủy:
               </DialogDescription>
             </DialogHeader>
 
-            <div className="py-2 space-y-3">
-              <div className="rounded-lg border border-rose-800 bg-rose-950/40 p-3">
-                <p className="text-sm font-semibold text-rose-400 flex items-center gap-2">
-                  <Lock className="h-4 w-4" />
-                  Cảnh báo: Không thể hoàn tác
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Nếu chọn <strong className="text-foreground">Có — Tính hao hụt</strong>, đơn hàng sẽ bị khóa cứng vĩnh viễn bởi hệ thống. Mọi thao tác chỉnh sửa sau đó đều bị từ chối.
-                </p>
+            <div className="py-2 space-y-4">
+              {/* Radio Cards Lựa chọn */}
+              <div className="grid grid-cols-1 gap-3">
+                {/* Option 1: Hủy thường */}
+                <button
+                  type="button"
+                  onClick={() => setCancelWithLoss(false)}
+                  className={cn(
+                    "flex items-start gap-3 rounded-lg border p-3.5 text-left transition-all duration-200 cursor-pointer select-none outline-none",
+                    !cancelWithLoss
+                      ? "border-emerald-500 bg-emerald-950/20 ring-1 ring-emerald-500"
+                      : "border-border bg-card hover:bg-muted/30"
+                  )}
+                >
+                  <div className={cn(
+                    "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-xs",
+                    !cancelWithLoss
+                      ? "border-emerald-500 bg-emerald-500 text-white"
+                      : "border-muted-foreground"
+                  )}>
+                    {!cancelWithLoss && <span className="block h-1.5 w-1.5 rounded-full bg-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <span className="block text-sm font-semibold text-foreground">
+                      Không tính hao hụt (Hủy thường)
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground leading-normal">
+                      Chuyển trạng thái đơn về hủy bình thường. <strong className="text-foreground">Đơn hàng không bị khóa</strong> (vẫn có thể chỉnh sửa/xóa/mở lại sau này).
+                    </span>
+                  </div>
+                </button>
+
+                {/* Option 2: Tính hao hụt */}
+                <button
+                  type="button"
+                  onClick={() => setCancelWithLoss(true)}
+                  className={cn(
+                    "flex items-start gap-3 rounded-lg border p-3.5 text-left transition-all duration-200 cursor-pointer select-none outline-none",
+                    cancelWithLoss
+                      ? "border-rose-500 bg-rose-950/20 ring-1 ring-rose-500"
+                      : "border-border bg-card hover:bg-muted/30"
+                  )}
+                >
+                  <div className={cn(
+                    "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border text-xs",
+                    cancelWithLoss
+                      ? "border-rose-500 bg-rose-500 text-white"
+                      : "border-muted-foreground"
+                  )}>
+                    {cancelWithLoss && <span className="block h-1.5 w-1.5 rounded-full bg-white" />}
+                  </div>
+                  <div className="flex-1">
+                    <span className="block text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      Có tính hao hụt xưởng <Lock className="h-3 w-3 text-rose-400" />
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground leading-normal">
+                      Tính chi phí nhựa in hỏng vào chi phí hao phí xưởng. Đơn hàng sẽ <strong className="text-rose-400 font-semibold">bị khóa cứng vĩnh viễn</strong> để bảo toàn số liệu.
+                    </span>
+                  </div>
+                </button>
               </div>
+
+              {/* Cảnh báo khóa cứng */}
+              {cancelWithLoss && (
+                <div className="rounded-lg border border-rose-800/80 bg-rose-950/40 p-3.5 animate-in fade-in duration-200">
+                  <p className="text-xs font-semibold text-rose-400 flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    Cảnh báo khóa cứng vĩnh viễn
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                    Sau khi hủy, mọi thao tác cập nhật hoặc xóa đơn hàng/mục đơn hàng đều bị hệ thống chặn hoàn toàn (Ironclad Lock).
+                  </p>
+                </div>
+              )}
             </div>
 
-            <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-2">
               <Button
                 variant="outline"
-                onClick={() => setPendingCancellation(null)}
+                onClick={handleCloseCancellationDialog}
                 disabled={isUpdatingStatus}
-                className="border-border text-muted-foreground hover:text-foreground cursor-pointer"
+                className="border-border text-muted-foreground hover:text-foreground cursor-pointer w-full sm:w-auto"
               >
                 Quay lại
               </Button>
               <Button
-                variant="outline"
-                onClick={handleConfirmCancelNoLoss}
+                onClick={handleConfirmCancellation}
                 disabled={isUpdatingStatus}
-                className="border-border text-foreground hover:bg-muted cursor-pointer"
+                className={cn(
+                  "text-white cursor-pointer w-full sm:w-auto transition-colors duration-200",
+                  cancelWithLoss
+                    ? "bg-rose-700 hover:bg-rose-600"
+                    : "bg-emerald-600 hover:bg-emerald-500"
+                )}
               >
-                {isUpdatingStatus ? 'Đang xử lý...' : 'Không — Hủy bình thường'}
-              </Button>
-              <Button
-                onClick={handleConfirmCancelWithLoss}
-                disabled={isUpdatingStatus}
-                className="bg-rose-700 hover:bg-rose-600 text-white cursor-pointer"
-              >
-                {isUpdatingStatus ? 'Đang xử lý...' : 'Có — Tính hao hụt (Khóa cứng)'}
+                {isUpdatingStatus ? 'Đang xử lý...' : 'Xác nhận hủy'}
               </Button>
             </DialogFooter>
           </DialogContent>
