@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
+import Big from "big.js";
 import {
   Package,
   Plus,
@@ -12,6 +13,8 @@ import {
   AlertCircle,
   Box,
   Tag,
+  Calculator,
+  Hash,
 } from "lucide-react";
 import {
   ApiFixedItemCatalog,
@@ -48,22 +51,41 @@ const ITEM_TYPE_LABELS: Record<ItemType, { label: string; color: string }> = {
   },
 };
 
+type InputMode = "direct" | "bulk";
+
 interface EditingRow {
   id: number | null; // null = new row
   name: string;
   item_type: ItemType;
-  costInput: string;  // raw string for formatting
-  cost: number;       // parsed number
+  // Chế độ nhập
+  inputMode: InputMode;
+  // Chế độ A — Đơn giá trực tiếp
+  costInput: string;
+  cost: number;
   isCostFocused: boolean;
+  // Chế độ B — Tính từ gói/lô
+  totalPrice: number;
+  totalPriceInput: string;
+  isTotalPriceFocused: boolean;
+  lotQuantity: number;
+  lotQuantityInput: string;
+  isLotQtyFocused: boolean;
 }
 
 const EMPTY_ROW: EditingRow = {
   id: null,
   name: "",
   item_type: "packaging",
+  inputMode: "direct",
   costInput: "",
   cost: 0,
   isCostFocused: false,
+  totalPrice: 0,
+  totalPriceInput: "",
+  isTotalPriceFocused: false,
+  lotQuantity: 0,
+  lotQuantityInput: "",
+  isLotQtyFocused: false,
 };
 
 export function FixedItemsManager({ items, onDataChange }: Props) {
@@ -90,14 +112,69 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
       id: item.id,
       name: item.name,
       item_type: item.item_type,
+      inputMode: "direct",
       costInput: item.cost.toString(),
       cost: item.cost,
       isCostFocused: false,
+      totalPrice: 0,
+      totalPriceInput: "",
+      isTotalPriceFocused: false,
+      lotQuantity: 0,
+      lotQuantityInput: "",
+      isLotQtyFocused: false,
     });
     setConfirmDeleteId(null);
   };
 
   const cancelEdit = () => setEditingRow(null);
+
+  // ── Computed unit cost (Chế độ B — Tính từ gói/lô) ──────────────────────
+  // Dùng Big.js để tránh floating-point drift.
+  // Guard chặt NaN / division-by-zero khi người dùng đang gõ dở.
+  const computedUnitCost = useMemo((): number => {
+    if (!editingRow || editingRow.inputMode !== "bulk") return editingRow?.cost ?? 0;
+    const qty = Number(editingRow.lotQuantity);
+    const total = Number(editingRow.totalPrice);
+    if (isNaN(qty) || qty <= 0 || isNaN(total) || total < 0) return 0;
+    try {
+      // round(4, 1) = 4 decimal places, ROUND_HALF_UP — khớp NUMERIC(12,4) DB
+      return new Big(total).div(qty).round(4, 1).toNumber();
+    } catch {
+      return 0;
+    }
+  }, [editingRow?.inputMode, editingRow?.totalPrice, editingRow?.lotQuantity, editingRow?.cost]);
+
+  // ── Bulk-mode input handlers ──────────────────────────────────────────────
+
+  const handleTotalPriceFocus = () => {
+    if (!editingRow) return;
+    setEditingRow({
+      ...editingRow,
+      isTotalPriceFocused: true,
+      totalPriceInput: editingRow.totalPrice === 0 ? "" : editingRow.totalPrice.toString(),
+    });
+  };
+
+  const handleTotalPriceBlur = () => {
+    if (!editingRow) return;
+    const parsed = parseVNDInteger(editingRow.totalPriceInput);
+    setEditingRow({ ...editingRow, isTotalPriceFocused: false, totalPrice: parsed, totalPriceInput: parsed.toString() });
+  };
+
+  const handleLotQtyFocus = () => {
+    if (!editingRow) return;
+    setEditingRow({
+      ...editingRow,
+      isLotQtyFocused: true,
+      lotQuantityInput: editingRow.lotQuantity === 0 ? "" : editingRow.lotQuantity.toString(),
+    });
+  };
+
+  const handleLotQtyBlur = () => {
+    if (!editingRow) return;
+    const parsed = Math.max(0, parseInt(editingRow.lotQuantityInput, 10) || 0);
+    setEditingRow({ ...editingRow, isLotQtyFocused: false, lotQuantity: parsed, lotQuantityInput: parsed.toString() });
+  };
 
   const handleCostFocus = () => {
     if (!editingRow) return;
@@ -125,15 +202,25 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
       showToast("Tên vật tư không được để trống.", "error");
       return;
     }
-    if (editingRow.cost <= 0) {
-      showToast("Đơn giá phải lớn hơn 0.", "error");
+
+
+    // Xác định đơn giá cuối: direct mode dùng editingRow.cost, bulk mode dùng computedUnitCost
+    const finalCost = editingRow.inputMode === "bulk" ? computedUnitCost : editingRow.cost;
+
+    if (finalCost <= 0) {
+      showToast(
+        editingRow.inputMode === "bulk"
+          ? "Đơn giá tính được phải lớn hơn 0. Kiểm tra lại Giá tổng và Số lượng."
+          : "Đơn giá phải lớn hơn 0.",
+        "error"
+      );
       return;
     }
 
     const payload: CreateFixedItemPayload = {
       name: editingRow.name.trim(),
       item_type: editingRow.item_type,
-      cost: editingRow.cost,
+      cost: finalCost,
     };
 
     setIsSubmitting(true);
@@ -182,74 +269,103 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
     const typeInfo = ITEM_TYPE_LABELS[item.item_type];
 
     if (isEditing && editingRow) {
+      const isBulk = editingRow.inputMode === "bulk";
+      const isQtyInvalid = isBulk && (editingRow.lotQuantity <= 0);
       return (
         <tr key={item.id} className="bg-muted/20">
-          <td className="p-2">
-            <Input
-              autoFocus
-              value={editingRow.name}
-              onChange={(e) =>
-                setEditingRow({ ...editingRow, name: e.target.value })
-              }
-              className="h-8 text-sm font-sans"
-              placeholder="Tên vật tư..."
-            />
-          </td>
-          <td className="p-2">
-            <select
-              value={editingRow.item_type}
-              onChange={(e) =>
-                setEditingRow({
-                  ...editingRow,
-                  item_type: e.target.value as ItemType,
-                })
-              }
-              className="w-full bg-muted border border-border rounded-md px-2 py-1 text-xs font-sans focus:outline-none focus:border-primary h-8 text-foreground"
-            >
-              <option value="packaging">Bao bì</option>
-              <option value="accessory">Phụ kiện</option>
-            </select>
-          </td>
-          <td className="p-2">
-            <Input
-              type={editingRow.isCostFocused ? "number" : "text"}
-              value={
-                editingRow.isCostFocused
-                  ? editingRow.costInput
-                  : editingRow.cost > 0
-                  ? formatVND(editingRow.cost)
-                  : ""
-              }
-              onFocus={handleCostFocus}
-              onBlur={handleCostBlur}
-              onChange={(e) =>
-                setEditingRow({ ...editingRow, costInput: e.target.value })
-              }
-              className="h-8 text-sm font-mono text-right"
-              placeholder="0 đ"
-            />
-          </td>
-          <td className="p-2">
-            <div className="flex items-center gap-1.5 justify-end">
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={isSubmitting}
-                className="h-7 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1"
-              >
-                <Save className="h-3 w-3" />
-                {isSubmitting ? "Đang lưu..." : "Lưu"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={cancelEdit}
-                disabled={isSubmitting}
-                className="h-7 px-2 text-muted-foreground hover:text-foreground text-xs gap-1"
-              >
-                <X className="h-3 w-3" />
-                Hủy
-              </Button>
+          <td className="p-2" colSpan={4}>
+            <div className="flex flex-col gap-2">
+              {/* Row 1: Name + Type + Actions */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  autoFocus
+                  value={editingRow.name}
+                  onChange={(e) => setEditingRow({ ...editingRow, name: e.target.value })}
+                  className="h-8 text-sm font-sans flex-1 min-w-32"
+                  placeholder="Tên vật tư..."
+                />
+                <select
+                  value={editingRow.item_type}
+                  onChange={(e) => setEditingRow({ ...editingRow, item_type: e.target.value as ItemType })}
+                  className="bg-muted border border-border rounded-md px-2 py-1 text-xs font-sans focus:outline-none focus:border-primary h-8 text-foreground"
+                >
+                  <option value="packaging">Bao bì</option>
+                  <option value="accessory">Phụ kiện</option>
+                </select>
+                <div className="flex items-center gap-1 ml-auto">
+                  <Button size="sm" onClick={handleSave} disabled={isSubmitting || isQtyInvalid}
+                    className="h-7 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1">
+                    <Save className="h-3 w-3" />
+                    {isSubmitting ? "Đang lưu..." : "Lưu"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={isSubmitting}
+                    className="h-7 px-2 text-muted-foreground hover:text-foreground text-xs gap-1">
+                    <X className="h-3 w-3" />Hủy
+                  </Button>
+                </div>
+              </div>
+              {/* Row 2: Mode toggle + price inputs */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Toggle */}
+                <div className="flex rounded-md border border-border overflow-hidden text-[10px] font-mono shrink-0">
+                  <button
+                    onClick={() => setEditingRow({ ...editingRow, inputMode: "direct" })}
+                    className={`px-2.5 py-1 transition-colors duration-150 ${
+                      !isBulk ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}>
+                    Trực tiếp
+                  </button>
+                  <button
+                    onClick={() => setEditingRow({ ...editingRow, inputMode: "bulk" })}
+                    className={`px-2.5 py-1 flex items-center gap-1 transition-colors duration-150 ${
+                      isBulk ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}>
+                    <Calculator className="h-2.5 w-2.5" />Theo lô
+                  </button>
+                </div>
+                {!isBulk ? (
+                  <Input
+                    type={editingRow.isCostFocused ? "number" : "text"}
+                    value={editingRow.isCostFocused ? editingRow.costInput : editingRow.cost > 0 ? formatVND(editingRow.cost) : ""}
+                    onFocus={handleCostFocus} onBlur={handleCostBlur}
+                    onChange={(e) => setEditingRow({ ...editingRow, costInput: e.target.value })}
+                    className="h-8 text-sm font-mono text-right w-36" placeholder="Đơn giá (đ)"
+                  />
+                ) : (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Input
+                      type={editingRow.isTotalPriceFocused ? "number" : "text"}
+                      value={editingRow.isTotalPriceFocused ? editingRow.totalPriceInput : editingRow.totalPrice > 0 ? formatVND(editingRow.totalPrice) : ""}
+                      onFocus={handleTotalPriceFocus} onBlur={handleTotalPriceBlur}
+                      onChange={(e) => setEditingRow({ ...editingRow, totalPriceInput: e.target.value })}
+                      className="h-8 text-sm font-mono text-right w-32" placeholder="Giá tổng (đ)"
+                    />
+                    <span className="text-muted-foreground text-xs font-mono">÷</span>
+                    <div className="relative">
+                      <Hash className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                      <Input
+                        type={editingRow.isLotQtyFocused ? "number" : "text"}
+                        value={editingRow.isLotQtyFocused ? editingRow.lotQuantityInput : editingRow.lotQuantity > 0 ? editingRow.lotQuantity.toLocaleString("vi-VN") : ""}
+                        onFocus={handleLotQtyFocus} onBlur={handleLotQtyBlur}
+                        onChange={(e) => setEditingRow({ ...editingRow, lotQuantityInput: e.target.value })}
+                        className="h-8 text-sm font-mono text-right w-24 pl-6"
+                        placeholder="SL"
+                      />
+                    </div>
+                    <span className="text-muted-foreground text-xs font-mono">=</span>
+                    {/* Live preview — real-time, no blur needed */}
+                    <div className={`flex items-center gap-1 px-2.5 py-1 rounded-md border text-xs font-mono font-bold ${
+                      computedUnitCost > 0
+                        ? "bg-emerald-950/30 border-emerald-700/50 text-emerald-300"
+                        : isQtyInvalid
+                        ? "bg-rose-950/30 border-rose-700/50 text-rose-400"
+                        : "bg-muted border-border text-muted-foreground"
+                    }`}>
+                      {computedUnitCost > 0 ? `${formatVND(computedUnitCost)}/cái` : isQtyInvalid ? "SL = 0!" : "—"}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </td>
         </tr>
@@ -324,78 +440,101 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
 
   const renderNewRow = () => {
     if (!editingRow || editingRow.id !== null) return null;
+    const isBulk = editingRow.inputMode === "bulk";
+    const isQtyInvalid = isBulk && editingRow.lotQuantity <= 0;
     return (
       <tr className="bg-emerald-950/10 border-t border-emerald-800/30">
-        <td className="p-2">
-          <Input
-            autoFocus
-            value={editingRow.name}
-            onChange={(e) =>
-              setEditingRow({ ...editingRow, name: e.target.value })
-            }
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
-              if (e.key === "Escape") cancelEdit();
-            }}
-            className="h-8 text-sm font-sans"
-            placeholder="Tên vật tư mới..."
-          />
-        </td>
-        <td className="p-2">
-          <select
-            value={editingRow.item_type}
-            onChange={(e) =>
-              setEditingRow({
-                ...editingRow,
-                item_type: e.target.value as ItemType,
-              })
-            }
-            className="w-full bg-muted border border-border rounded-md px-2 py-1 text-xs font-sans focus:outline-none focus:border-primary h-8 text-foreground"
-          >
-            <option value="packaging">Bao bì</option>
-            <option value="accessory">Phụ kiện</option>
-          </select>
-        </td>
-        <td className="p-2">
-          <Input
-            type={editingRow.isCostFocused ? "number" : "text"}
-            value={
-              editingRow.isCostFocused
-                ? editingRow.costInput
-                : editingRow.cost > 0
-                ? formatVND(editingRow.cost)
-                : ""
-            }
-            onFocus={handleCostFocus}
-            onBlur={handleCostBlur}
-            onChange={(e) =>
-              setEditingRow({ ...editingRow, costInput: e.target.value })
-            }
-            className="h-8 text-sm font-mono text-right"
-            placeholder="0 đ"
-          />
-        </td>
-        <td className="p-2">
-          <div className="flex items-center gap-1.5 justify-end">
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={isSubmitting}
-              className="h-7 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1"
-            >
-              <Save className="h-3 w-3" />
-              {isSubmitting ? "Đang lưu..." : "Thêm"}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={cancelEdit}
-              disabled={isSubmitting}
-              className="h-7 px-2 text-muted-foreground hover:text-foreground text-xs gap-1"
-            >
-              <X className="h-3 w-3" />
-              Hủy
-            </Button>
+        <td className="p-2" colSpan={4}>
+          <div className="flex flex-col gap-2">
+            {/* Row 1: Name + Type + Actions */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Input
+                autoFocus
+                value={editingRow.name}
+                onChange={(e) => setEditingRow({ ...editingRow, name: e.target.value })}
+                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") cancelEdit(); }}
+                className="h-8 text-sm font-sans flex-1 min-w-32"
+                placeholder="Tên vật tư mới..."
+              />
+              <select
+                value={editingRow.item_type}
+                onChange={(e) => setEditingRow({ ...editingRow, item_type: e.target.value as ItemType })}
+                className="bg-muted border border-border rounded-md px-2 py-1 text-xs font-sans focus:outline-none focus:border-primary h-8 text-foreground"
+              >
+                <option value="packaging">Bao bì</option>
+                <option value="accessory">Phụ kiện</option>
+              </select>
+              <div className="flex items-center gap-1 ml-auto">
+                <Button size="sm" onClick={handleSave} disabled={isSubmitting || isQtyInvalid}
+                  className="h-7 px-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs gap-1">
+                  <Save className="h-3 w-3" />
+                  {isSubmitting ? "Đang lưu..." : "Thêm"}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={isSubmitting}
+                  className="h-7 px-2 text-muted-foreground hover:text-foreground text-xs gap-1">
+                  <X className="h-3 w-3" />Hủy
+                </Button>
+              </div>
+            </div>
+            {/* Row 2: Mode toggle + price inputs */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-md border border-border overflow-hidden text-[10px] font-mono shrink-0">
+                <button
+                  onClick={() => setEditingRow({ ...editingRow, inputMode: "direct" })}
+                  className={`px-2.5 py-1 transition-colors duration-150 ${
+                    !isBulk ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}>
+                  Trực tiếp
+                </button>
+                <button
+                  onClick={() => setEditingRow({ ...editingRow, inputMode: "bulk" })}
+                  className={`px-2.5 py-1 flex items-center gap-1 transition-colors duration-150 ${
+                    isBulk ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}>
+                  <Calculator className="h-2.5 w-2.5" />Theo lô
+                </button>
+              </div>
+              {!isBulk ? (
+                <Input
+                  type={editingRow.isCostFocused ? "number" : "text"}
+                  value={editingRow.isCostFocused ? editingRow.costInput : editingRow.cost > 0 ? formatVND(editingRow.cost) : ""}
+                  onFocus={handleCostFocus} onBlur={handleCostBlur}
+                  onChange={(e) => setEditingRow({ ...editingRow, costInput: e.target.value })}
+                  className="h-8 text-sm font-mono text-right w-36" placeholder="Đơn giá (đ)"
+                />
+              ) : (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Input
+                    type={editingRow.isTotalPriceFocused ? "number" : "text"}
+                    value={editingRow.isTotalPriceFocused ? editingRow.totalPriceInput : editingRow.totalPrice > 0 ? formatVND(editingRow.totalPrice) : ""}
+                    onFocus={handleTotalPriceFocus} onBlur={handleTotalPriceBlur}
+                    onChange={(e) => setEditingRow({ ...editingRow, totalPriceInput: e.target.value })}
+                    className="h-8 text-sm font-mono text-right w-32" placeholder="Giá tổng (đ)"
+                  />
+                  <span className="text-muted-foreground text-xs font-mono">÷</span>
+                  <div className="relative">
+                    <Hash className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                    <Input
+                      type={editingRow.isLotQtyFocused ? "number" : "text"}
+                      value={editingRow.isLotQtyFocused ? editingRow.lotQuantityInput : editingRow.lotQuantity > 0 ? editingRow.lotQuantity.toLocaleString("vi-VN") : ""}
+                      onFocus={handleLotQtyFocus} onBlur={handleLotQtyBlur}
+                      onChange={(e) => setEditingRow({ ...editingRow, lotQuantityInput: e.target.value })}
+                      className="h-8 text-sm font-mono text-right w-24 pl-6" placeholder="SL"
+                    />
+                  </div>
+                  <span className="text-muted-foreground text-xs font-mono">=</span>
+                  <div className={`flex items-center gap-1 px-2.5 py-1 rounded-md border text-xs font-mono font-bold ${
+                    computedUnitCost > 0
+                      ? "bg-emerald-950/30 border-emerald-700/50 text-emerald-300"
+                      : isQtyInvalid
+                      ? "bg-rose-950/30 border-rose-700/50 text-rose-400"
+                      : "bg-muted border-border text-muted-foreground"
+                  }`}>
+                    {computedUnitCost > 0 ? `${formatVND(computedUnitCost)}/cái` : isQtyInvalid ? "SL = 0!" : "—"}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </td>
       </tr>

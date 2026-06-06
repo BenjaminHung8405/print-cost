@@ -1,10 +1,9 @@
+import { redirect } from 'next/navigation';
+
+/**
+ * /fixed-items — Route độc lập đã được hợp nhất vào AppShell Cấu hình.
+ * Redirect cứng về /configs/fixed-items để giữ Single Source of Truth.
+ */
 export default function FixedItemsPage() {
-  return (
-    <div className="min-h-screen bg-background flex items-center justify-center">
-      <div className="text-center space-y-2">
-        <h1 className="font-mono text-2xl font-bold text-foreground">Vật tư & Phụ kiện</h1>
-        <p className="text-muted-foreground text-sm">Coming soon — chức năng đang phát triển</p>
-      </div>
-    </div>
-  );
+  redirect('/configs/fixed-items');
 }
