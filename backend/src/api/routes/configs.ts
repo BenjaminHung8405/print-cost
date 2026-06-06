@@ -55,12 +55,14 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
 
     await db.transaction(async (trx) => {
       await trx('operational_configs')
-        .where({ key: 'machine_depreciation_per_hour' })
-        .update({ value: String(payload.machine_depreciation_per_hour) });
+        .insert({ key: 'machine_depreciation_per_hour', value: String(payload.machine_depreciation_per_hour) })
+        .onConflict('key')
+        .merge();
 
       await trx('operational_configs')
-        .where({ key: 'labor_cost_per_minute' })
-        .update({ value: String(payload.labor_cost_per_minute) });
+        .insert({ key: 'labor_cost_per_minute', value: String(payload.labor_cost_per_minute) })
+        .onConflict('key')
+        .merge();
     });
 
     res.json({
