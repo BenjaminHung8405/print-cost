@@ -10,6 +10,7 @@ import { productsRouter } from './api/routes/products';
 import { ordersRouter } from './api/routes/orders';
 import { configsRouter } from './api/routes/configs';
 import { analyticsRouter } from './api/routes/analytics';
+import { invoicesRouter } from './api/routes/invoices';
 import { errorHandler } from './api/middlewares/errorHandler';
 
 // Load environment variables
@@ -87,6 +88,7 @@ app.use('/api/products', productsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/operational-configs', configsRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/invoices', invoicesRouter);
 
 // Register centralized error handling middleware at the very end
 app.use(errorHandler);
