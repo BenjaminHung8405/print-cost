@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response, Router } from 'express';
 import { db } from '../../core/database/client';
 
 const router = Router();
@@ -41,9 +41,9 @@ router.get('/:order_id', async (req: Request, res: Response, next: NextFunction)
       ]);
 
     // 3. Đọc cấu hình ngân hàng từ file môi trường .env
-    const BANK_ID = process.env.BANK_ID || 'MB'; 
-    const ACCOUNT_NO = process.env.BANK_ACCOUNT_NO || '0000123456789';
-    const ACCOUNT_NAME = process.env.BANK_ACCOUNT_NAME || 'NGUYEN PHI HUNG';
+    const BANK_ID = process.env.BANK_ID || 'null'; 
+    const ACCOUNT_NO = process.env.BANK_ACCOUNT_NO || 'null';
+    const ACCOUNT_NAME = process.env.BANK_ACCOUNT_NAME || 'null';
     
     // Chuẩn hóa nội dung chuyển khoản sạch sẽ theo góp ý của Senior Dev
     const rawInfo = `THANH TOAN DON HANG OD ${order_id}`;
