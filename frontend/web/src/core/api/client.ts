@@ -139,6 +139,34 @@ export async function getMaterials(): Promise<ApiMaterial[]> {
   return apiFetch<ApiMaterial[]>('/api/materials');
 }
 
+/** POST /api/materials — create new plastic material */
+export async function createMaterial(
+  payload: Omit<ApiMaterial, 'id'>
+): Promise<ApiMaterial> {
+  return apiFetch<ApiMaterial>('/api/materials', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/** PUT /api/materials/:id — update plastic material */
+export async function updateMaterial(
+  id: number,
+  payload: Omit<ApiMaterial, 'id'>
+): Promise<ApiMaterial> {
+  return apiFetch<ApiMaterial>(`/api/materials/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+/** DELETE /api/materials/:id — delete plastic material */
+export async function deleteMaterial(id: number): Promise<void> {
+  return apiFetch<void>(`/api/materials/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 /** GET /api/products — fetch all product templates (with fixed_items aggregated) */
 export async function getProducts(): Promise<ApiProduct[]> {
   return apiFetch<ApiProduct[]>('/api/products');
