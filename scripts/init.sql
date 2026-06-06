@@ -1,15 +1,18 @@
 -- ==========================================
 -- PRINTCOST DATABASE INITIALIZATION
--- Schema V4 - Ironclad Edition
+-- Schema V4 - Ironclad Edition (REFINED)
 -- ==========================================
 -- Production-grade initialization script cho PostgreSQL 16
--- Tất cả constraints, triggers, views được khóa chặt ở mức database
+-- Đã vá: IMMUTABLE constraint enforcement + ENUM-typed trigger variables
 
 -- ==========================================
 -- 0. TẠO CÁC HÀM TIỆN ÍCH & THỦ TỤC PHÒNG THủ
 -- ==========================================
 
 -- Hàm làm tròn Half-Up đến 100đ gần nhất, khóa chặt số âm ở mức DB
+-- IMMUTABLE (không phải STABLE): CHECK constraint trong PostgreSQL chỉ được đảm bảo
+-- thực thi đáng tin cậy khi UPDATE nếu hàm là IMMUTABLE. Hàm vẫn được phép dùng
+-- RAISE EXCEPTION vì cùng input âm luôn cho cùng kết quả exception (bất biến).
 CREATE OR REPLACE FUNCTION round_to_100(raw_value NUMERIC) 
 RETURNS NUMERIC AS $$
 BEGIN
@@ -18,7 +21,7 @@ BEGIN
     END IF;
     RETURN ROUND(raw_value / 100, 0) * 100;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql IMMUTABLE;
 
 -- Trigger function tự động cập nhật cột updated_at
 CREATE OR REPLACE FUNCTION update_modified_column()
@@ -45,11 +48,17 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- order_status_enum phải được tạo TRƯỚC hàm trigger sử dụng nó
+CREATE TYPE order_status_enum AS ENUM ('draft', 'printing', 'completed', 'shipping', 'delivered', 'cancelled');
+
 -- Trigger khóa cứng Chi tiết đơn hàng (Chặn khi order cha bị lock)
 CREATE OR REPLACE FUNCTION enforce_order_items_lock()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_status VARCHAR(50);
+    -- Dùng đúng kiểu ENUM thay vì VARCHAR(50) để tránh bẫy ép kiểu ngầm định.
+    -- Nếu Postgres thực hiện implicit cast giữa ENUM và VARCHAR, điều kiện so sánh
+    -- 'cancelled' có thể không khớp trong một số phiên bản/cấu hình driver.
+    v_status order_status_enum;
     v_is_loss_counted BOOLEAN;
 BEGIN
     -- Truy vấn trạng thái từ đơn hàng cha
@@ -62,7 +71,7 @@ BEGIN
         RAISE EXCEPTION 'LỖI TOÀN VẸN: Không tìm thấy Đơn hàng tương ứng với mã số %', COALESCE(OLD.order_id, NEW.order_id);
     END IF;
     
-    -- Thực thi khóa logic
+    -- Thực thi khóa logic (so sánh ENUM với ENUM literal, an toàn tuyệt đối)
     IF v_status = 'cancelled' AND v_is_loss_counted = TRUE THEN
         RAISE EXCEPTION 'LỖI BẢO MẬT: Không thể thay đổi chi tiết đơn hàng vì Đơn hàng cha đã bị khóa cứng!';
     END IF;
@@ -134,7 +143,7 @@ CREATE TABLE product_fixed_items (
 -- 3. CỤM ĐƠN HÀNG & SNAPSHOT (LEDGER)
 -- ==========================================
 
-CREATE TYPE order_status_enum AS ENUM ('draft', 'printing', 'completed', 'shipping', 'delivered', 'cancelled');
+-- order_status_enum đã được khai báo ở Section 0 (trước trigger function sử dụng nó)
 
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
@@ -230,14 +239,16 @@ LEFT JOIN order_items oi ON o.id = oi.order_id
 GROUP BY o.id;
 
 -- ==========================================
--- 7. SEED DATA - CẤU HÌNH KHỞI TẠO
+-- 7. SEED DATA - CẤU HÌNH KHỞI TẠO (VỚI PHÒNG THỦ ON CONFLICT)
 -- ==========================================
 
--- Thêm cấu hình vận hành
+-- Thêm cấu hình vận hành (bao gồm maintenance_reset_hours)
+-- ON CONFLICT (key) DO NOTHING: chỉ định rõ PRIMARY KEY column, tránh lỗi "no unique constraint"
 INSERT INTO operational_configs (key, value, description) VALUES
 ('machine_depreciation_per_hour', 5000.0000, 'Tiền điện và khấu hao máy in mỗi giờ'),
-('labor_cost_per_minute', 500.0000, 'Tiền công thợ xử lý hậu kỳ mỗi phút')
-ON CONFLICT DO NOTHING;
+('labor_cost_per_minute', 500.0000, 'Tiền công thợ xử lý hậu kỳ mỗi phút'),
+('maintenance_reset_hours', 100.0000, 'Chu kỳ bảo trì, tra dầu mỡ máy in (giờ)')
+ON CONFLICT (key) DO NOTHING;
 
 -- Thêm danh mục nhựa kèm margin
 INSERT INTO materials (name, price_per_kg, fail_rate, default_margin) VALUES
@@ -275,9 +286,9 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 -- Hiển thị thông báo thành công
 DO $$ 
 BEGIN 
-    RAISE NOTICE 'PRINTCOST DATABASE V4 - INITIALIZATION COMPLETE';
+    RAISE NOTICE 'PRINTCOST DATABASE V4 - IRONCLAD EDITION (REFINED) - INITIALIZATION COMPLETE';
     RAISE NOTICE 'Tables: materials, operational_configs, fixed_items, products, product_fixed_items, orders, order_items';
-    RAISE NOTICE 'Functions: round_to_100, update_modified_column, enforce_order_lock, enforce_order_items_lock';
+    RAISE NOTICE 'Functions: round_to_100 [IMMUTABLE], update_modified_column, enforce_order_lock, enforce_order_items_lock [ENUM-typed]';
     RAISE NOTICE 'Triggers: Auto-lock mechanisms + updated_at automation ACTIVE';
     RAISE NOTICE 'Views: view_orders_summary ready for reporting';
 END $$;
