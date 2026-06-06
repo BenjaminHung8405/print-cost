@@ -253,20 +253,8 @@ export function CreateOrderPage() {
   // Render (data is fully loaded)
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <h1 className="font-mono text-xl font-bold text-foreground">PrintCost</h1>
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
-        <div className="mb-6">
+    <div>
+      <div className="mb-6">
           <h2 className="font-mono text-2xl lg:text-3xl font-bold text-foreground">
             Tạo đơn hàng
           </h2>
@@ -339,7 +327,6 @@ export function CreateOrderPage() {
             />
           </div>
         </div>
-      </main>
     </div>
   );
 }

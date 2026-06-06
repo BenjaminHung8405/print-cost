@@ -90,7 +90,7 @@ CREATE TABLE materials (
 
 CREATE TABLE operational_configs (
     key VARCHAR(100) PRIMARY KEY,
-    CONSTRAINT check_valid_keys CHECK (key IN ('machine_depreciation_per_hour', 'labor_cost_per_minute')),
+    CONSTRAINT check_valid_keys CHECK (key IN ('machine_depreciation_per_hour', 'labor_cost_per_minute', 'maintenance_reset_hours')),
     value NUMERIC(12, 4) NOT NULL CHECK (value >= 0),
     description TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

@@ -21,6 +21,8 @@ export const metadata: Metadata = {
   description: 'Hệ thống tính toán giá vốn và quản lý đơn hàng xưởng in 3D',
 };
 
+import { AppShell } from '@/components/layout/app-shell';
+
 export default function RootLayout({
   children,
 }: {
@@ -44,7 +46,9 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans antialiased">
-        {children}
+        <AppShell>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

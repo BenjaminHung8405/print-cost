@@ -9,6 +9,7 @@ import { fixedItemsRouter } from './api/routes/fixed-items';
 import { productsRouter } from './api/routes/products';
 import { ordersRouter } from './api/routes/orders';
 import { configsRouter } from './api/routes/configs';
+import { analyticsRouter } from './api/routes/analytics';
 import { errorHandler } from './api/middlewares/errorHandler';
 
 // Load environment variables
@@ -85,6 +86,7 @@ app.use('/api/fixed-items', fixedItemsRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/orders', ordersRouter);
 app.use('/api/operational-configs', configsRouter);
+app.use('/api/analytics', analyticsRouter);
 
 // Register centralized error handling middleware at the very end
 app.use(errorHandler);

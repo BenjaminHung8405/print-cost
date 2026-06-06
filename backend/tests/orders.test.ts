@@ -10,13 +10,8 @@ describe('Orders API Integration Tests', () => {
   let testFixedItemId: number;
 
   beforeAll(async () => {
-    // 1. Clean up stale test records to prevent conflicts
-    await db('order_items').del();
-    await db('orders').del();
-    await db('product_fixed_items').del();
-    await db('products').del();
-    await db('materials').del();
-    await db('fixed_items').del();
+    // 1. Clean up stale test records to prevent conflicts (using TRUNCATE to bypass locks)
+    await db.raw('TRUNCATE TABLE order_items, orders, product_fixed_items, products, fixed_items, materials RESTART IDENTITY CASCADE');
     await db('operational_configs').del();
 
     // 2. Seed global operational configs
@@ -73,13 +68,8 @@ describe('Orders API Integration Tests', () => {
   });
 
   afterAll(async () => {
-    // Clean up all seeded data after test execution completes
-    await db('order_items').del();
-    await db('orders').del();
-    await db('product_fixed_items').del();
-    await db('products').del();
-    await db('materials').del();
-    await db('fixed_items').del();
+    // Clean up all seeded data after test execution completes (using TRUNCATE to bypass locks)
+    await db.raw('TRUNCATE TABLE order_items, orders, product_fixed_items, products, fixed_items, materials RESTART IDENTITY CASCADE');
     await db('operational_configs').del();
     // Close database connection pool to let process exit cleanly
     await db.destroy();

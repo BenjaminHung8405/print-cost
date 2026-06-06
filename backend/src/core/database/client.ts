@@ -32,6 +32,13 @@ export async function verifyDatabaseConnection(retries = 10, delayMs = 3000): Pr
       // Run a simple query to verify connection
       await db.raw('SELECT 1');
       console.log('✓ Kết nối database thành công!');
+      
+      // Auto-migrate check constraint for operational_configs to support maintenance_reset_hours
+      await db.raw(`
+        ALTER TABLE operational_configs DROP CONSTRAINT IF EXISTS check_valid_keys;
+        ALTER TABLE operational_configs ADD CONSTRAINT check_valid_keys CHECK (key IN ('machine_depreciation_per_hour', 'labor_cost_per_minute', 'maintenance_reset_hours'));
+      `);
+      
       return;
     } catch (error: any) {
       console.warn(`⚠️ [Lần thử ${attempt}/${retries}] Chưa thể kết nối database. Chi tiết: ${error.message || error}`);

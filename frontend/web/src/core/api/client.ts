@@ -180,3 +180,69 @@ export async function updateOrderStatus(
     body: JSON.stringify({ status, is_loss_counted: isLossCounted }),
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Analytics APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MonthlyAnalytics {
+  month: string;
+  total_orders: number;
+  revenue: number;
+  cogs: number;
+  wasted_cogs: number;
+  profit: number;
+}
+
+export interface AnalyticsSummaryResult {
+  totals: {
+    total_revenue: number;
+    total_cogs: number;
+    total_wasted_cogs: number;
+    total_profit: number;
+    total_orders: number;
+  };
+  monthly: MonthlyAnalytics[];
+}
+
+export interface MaterialAnalytics {
+  material_name: string;
+  total_weight_consumed: number;
+}
+
+export interface MachineAnalytics {
+  total_print_time_hours: number;
+  reset_hours: number;
+  hours_since_maintenance: number;
+  maintenance_hours_threshold: number;
+  needs_maintenance: boolean;
+}
+
+export interface MachineResetResult {
+  message: string;
+  reset_hours: number;
+  hours_since_maintenance: number;
+  needs_maintenance: boolean;
+}
+
+/** GET /api/analytics/summary — fetch financial KPI metrics and monthly logs */
+export async function getAnalyticsSummary(): Promise<AnalyticsSummaryResult> {
+  return apiFetch<AnalyticsSummaryResult>('/api/analytics/summary');
+}
+
+/** GET /api/analytics/materials — fetch filament consumption weights */
+export async function getAnalyticsMaterials(): Promise<MaterialAnalytics[]> {
+  return apiFetch<MaterialAnalytics[]>('/api/analytics/materials');
+}
+
+/** GET /api/analytics/machines — fetch printer cumulative runtime */
+export async function getAnalyticsMachines(): Promise<MachineAnalytics> {
+  return apiFetch<MachineAnalytics>('/api/analytics/machines');
+}
+
+/** POST /api/analytics/machines/reset — reset running hours and save reset mark */
+export async function resetMachineMaintenance(): Promise<MachineResetResult> {
+  return apiFetch<MachineResetResult>('/api/analytics/machines/reset', {
+    method: 'POST',
+  });
+}
