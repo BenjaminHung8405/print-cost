@@ -70,6 +70,21 @@ export function CreateOrderPage() {
     { id: generateId(), productId: '', quantity: 1 },
   ]);
 
+  // ── Bulk Margin Override ───────────────────────────────────────────────────
+  const [orderMarginOverride, setOrderMarginOverride] = useState<number | null>(null);
+  const [marginInputString, setMarginInputString] = useState<string>('');
+
+  const handleMarginChange = useCallback((valStr: string) => {
+    if (valStr !== '' && !/^\d+$/.test(valStr)) return;
+    setMarginInputString(valStr);
+    const parsed = parseInt(valStr);
+    if (!isNaN(parsed) && parsed >= 0 && parsed < 100) {
+      setOrderMarginOverride(parsed / 100);
+    } else {
+      setOrderMarginOverride(null);
+    }
+  }, []);
+
   // ── Submission state ───────────────────────────────────────────────────────
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -174,8 +189,8 @@ export function CreateOrderPage() {
       return null;
     }
     const validItems = items.filter(item => item.productId !== '');
-    return calculateOrderTotals(validItems, products, materialMap, configs);
-  }, [items, products, materialMap, configs]);
+    return calculateOrderTotals(validItems, products, materialMap, configs, orderMarginOverride);
+  }, [items, products, materialMap, configs, orderMarginOverride]);
 
   // ── Suggested price per item (used by OrderItemCard) ──────────────────────
   const getSuggestedPrice = useCallback(
@@ -207,11 +222,14 @@ export function CreateOrderPage() {
         customer_contact: customerContact.trim() || null,
         items: items
           .filter(item => item.productId !== '')
-          .map(item => ({
-            product_id: Number(item.productId),
-            quantity: item.quantity,
-            price_override: item.overridePrice ?? null,
-          })),
+          .map(item => {
+            const calculatedItem = totals?.items.find(ci => ci.id === item.id);
+            return {
+              product_id: Number(item.productId),
+              quantity: item.quantity,
+              price_override: calculatedItem ? calculatedItem.final_unit_price : (item.overridePrice ?? null),
+            };
+          }),
       });
       // Navigate back to the order list on success
       router.push(`/orders`);
@@ -224,7 +242,7 @@ export function CreateOrderPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [isValid, isSubmitting, customerName, customerContact, items, router]);
+  }, [isValid, isSubmitting, customerName, customerContact, items, totals, router]);
 
   // ── Guard: Skeleton while APIs are loading (pitfall #2 guard) ─────────────
   if (!products || !materials || !configs) {
@@ -282,28 +300,34 @@ export function CreateOrderPage() {
             />
 
             <div className="space-y-4">
-              {items.map((item, index) => (
-                <OrderItemCard
-                  key={item.id}
-                  index={index}
-                  itemId={item.id}
-                  productId={item.productId}
-                  quantity={item.quantity}
-                  overrideHours={item.overrideHours}
-                  overrideMinutes={item.overrideMinutes}
-                  overridePrice={item.overridePrice}
-                  showDelete={items.length > 1}
-                  products={products}
-                  getSuggestedPrice={getSuggestedPrice}
-                  onProductChange={productId => updateItemProduct(item.id, productId)}
-                  onQuantityChange={quantity => updateItemQuantity(item.id, quantity)}
-                  onOverrideTimeChange={(hours, minutes) =>
-                    updateItemOverrideTime(item.id, hours, minutes)
-                  }
-                  onOverridePriceChange={price => updateItemOverridePrice(item.id, price)}
-                  onDelete={() => removeItem(item.id)}
-                />
-              ))}
+              {items.map((item, index) => {
+                const calculated = totals?.items.find(ci => ci.id === item.id);
+                return (
+                  <OrderItemCard
+                    key={item.id}
+                    index={index}
+                    itemId={item.id}
+                    productId={item.productId}
+                    quantity={item.quantity}
+                    overrideHours={item.overrideHours}
+                    overrideMinutes={item.overrideMinutes}
+                    overridePrice={item.overridePrice}
+                    showDelete={items.length > 1}
+                    products={products}
+                    getSuggestedPrice={getSuggestedPrice}
+                    onProductChange={productId => updateItemProduct(item.id, productId)}
+                    onQuantityChange={quantity => updateItemQuantity(item.id, quantity)}
+                    onOverrideTimeChange={(hours, minutes) =>
+                      updateItemOverrideTime(item.id, hours, minutes)
+                    }
+                    onOverridePriceChange={price => updateItemOverridePrice(item.id, price)}
+                    onDelete={() => removeItem(item.id)}
+                    isBelowSafety={calculated?.is_below_safety}
+                    appliedMargin={calculated?.applied_margin}
+                    safetyMargin={calculated?.safety_margin}
+                  />
+                );
+              })}
             </div>
 
             <Button
@@ -324,6 +348,9 @@ export function CreateOrderPage() {
               onConfirm={handleConfirm}
               isValid={isValid}
               isSubmitting={isSubmitting}
+              orderMarginOverride={orderMarginOverride}
+              marginInputString={marginInputString}
+              onMarginChange={handleMarginChange}
             />
           </div>
         </div>

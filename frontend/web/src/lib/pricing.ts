@@ -178,13 +178,25 @@ export interface OrderTotals {
   totalCOGS: number;
   totalPrice: number;
   totalPrintTimeSeconds: number;
+  items: {
+    id: string;
+    productId: string;
+    final_unit_price: number;
+    total_item_price: number;
+    raw_unit_cogs: number;
+    applied_margin: number;
+    safety_margin: number;
+    is_below_safety: boolean;
+  }[];
+  is_bulk_pricing: boolean;
 }
 
 export function calculateOrderTotals(
   items: OrderItem[],
   products: ApiProduct[],
   materialMap: Record<number, MaterialConfig>,
-  configs: ApiOperationalConfigs
+  configs: ApiOperationalConfigs,
+  orderMarginOverride?: number | null
 ): OrderTotals {
   let totalMaterialCost    = new Big(0);
   let totalMachineCost     = new Big(0);
@@ -193,6 +205,8 @@ export function calculateOrderTotals(
   let totalCOGS            = new Big(0);
   let totalPrice           = new Big(0);
   let totalPrintTimeSeconds = 0;
+
+  const processedItems: OrderTotals['items'] = [];
 
   for (const item of items) {
     const product = products.find(p => String(p.id) === item.productId);
@@ -216,9 +230,48 @@ export function calculateOrderTotals(
     totalMachineCost    = totalMachineCost.plus(new Big(costs.rawMachineCost).times(qty));
     totalLaborCost      = totalLaborCost.plus(new Big(costs.rawLaborCost).times(qty));
     totalFixedItemsCost = totalFixedItemsCost.plus(new Big(costs.rawFixedItemsCost).times(qty));
-    totalCOGS           = totalCOGS.plus(new Big(costs.rawCOGS).times(qty));
-    totalPrice          = totalPrice.plus(new Big(costs.finalRetailPrice).times(qty));
+    
+    const rawCOGS = new Big(costs.rawCOGS);
+    totalCOGS = totalCOGS.plus(rawCOGS.times(qty));
+
+    // Margin determination and rounding
+    let finalUnitPrice: number;
+    let appliedMargin: number;
+
+    if (item.overridePrice !== undefined && item.overridePrice !== null) {
+      // Individual item price override takes precedence
+      finalUnitPrice = roundTo100(new Big(item.overridePrice));
+      if (finalUnitPrice > 0 && rawCOGS.gt(0)) {
+        appliedMargin = new Big(1).minus(rawCOGS.div(new Big(finalUnitPrice))).toNumber();
+      } else {
+        appliedMargin = 0;
+      }
+    } else if (orderMarginOverride !== undefined && orderMarginOverride !== null) {
+      appliedMargin = orderMarginOverride;
+      const rawSuggested = rawCOGS.div(new Big(1).minus(new Big(appliedMargin)));
+      finalUnitPrice = roundTo100(rawSuggested);
+    } else {
+      appliedMargin = costs.margin;
+      finalUnitPrice = costs.finalRetailPrice;
+    }
+
+    const totalItemPrice = new Big(finalUnitPrice).times(qty);
+    totalPrice = totalPrice.plus(totalItemPrice);
     totalPrintTimeSeconds += printTime * item.quantity;
+
+    const safetyMargin = product.margin_override ?? matConfig.default_margin;
+    const isBelowSafety = appliedMargin < safetyMargin;
+
+    processedItems.push({
+      id: item.id,
+      productId: item.productId,
+      final_unit_price: finalUnitPrice,
+      total_item_price: totalItemPrice.toNumber(),
+      raw_unit_cogs: rawCOGS.toNumber(),
+      applied_margin: appliedMargin,
+      safety_margin: safetyMargin,
+      is_below_safety: isBelowSafety,
+    });
   }
 
   return {
@@ -229,5 +282,7 @@ export function calculateOrderTotals(
     totalCOGS:            totalCOGS.toNumber(),
     totalPrice:           totalPrice.toNumber(),
     totalPrintTimeSeconds,
+    items: processedItems,
+    is_bulk_pricing: orderMarginOverride !== undefined && orderMarginOverride !== null,
   };
 }

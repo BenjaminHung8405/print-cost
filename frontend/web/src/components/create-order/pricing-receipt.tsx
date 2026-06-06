@@ -2,6 +2,8 @@
 
 import { Clock, Zap, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { formatVND, formatTime, type OrderTotals } from '@/lib/pricing';
 
 interface PricingReceiptProps {
@@ -9,9 +11,20 @@ interface PricingReceiptProps {
   onConfirm: () => void;
   isValid: boolean;
   isSubmitting?: boolean;
+  orderMarginOverride: number | null;
+  marginInputString: string;
+  onMarginChange: (val: string) => void;
 }
 
-export function PricingReceipt({ totals, onConfirm, isValid, isSubmitting = false }: PricingReceiptProps) {
+export function PricingReceipt({
+  totals,
+  onConfirm,
+  isValid,
+  isSubmitting = false,
+  orderMarginOverride,
+  marginInputString,
+  onMarginChange,
+}: PricingReceiptProps) {
   const empty = !totals || (totals.totalCOGS === 0 && totals.totalPrice === 0);
 
   return (
@@ -73,8 +86,36 @@ export function PricingReceipt({ totals, onConfirm, isValid, isSubmitting = fals
         {/* Dashed Separator */}
         <hr className="border-dashed border-border my-4" />
 
+        {/* Bulk Margin Override Input Card */}
+        <div className="bg-background/40 border border-border/80 rounded-lg p-3 my-4 space-y-2">
+          <Label htmlFor="order-margin" className="text-xs text-muted-foreground font-semibold flex items-center justify-between">
+            <span>Biên độ lợi nhuận sỉ toàn đơn (%)</span>
+          </Label>
+          <div className="relative">
+            <Input
+              id="order-margin"
+              type="number"
+              min={0}
+              max={99}
+              value={marginInputString}
+              onChange={e => onMarginChange(e.target.value)}
+              placeholder="Mặc định lẻ (theo nhựa)"
+              className="pr-8 h-9 bg-background border-border text-foreground font-mono text-center w-full focus:ring-1 focus:ring-ring"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">%</span>
+          </div>
+        </div>
+
+        {/* Dashed Separator */}
+        <hr className="border-dashed border-border my-4" />
+
         {/* Grand Total */}
         <div className="text-right">
+          {totals?.is_bulk_pricing && (
+            <div className="inline-flex items-center gap-1 bg-blue-950/45 text-blue-400 border border-blue-800/40 px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider mb-2">
+              ✨ Đang áp dụng giá sỉ
+            </div>
+          )}
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
             TỔNG TIỀN PHẢI THU (LÀM TRÒN)
           </p>
@@ -82,7 +123,9 @@ export function PricingReceipt({ totals, onConfirm, isValid, isSubmitting = fals
             {totals ? formatVND(totals.totalPrice) : '0 đ'}
           </p>
           <p className="text-xs text-muted-foreground italic mt-1">
-            (Đã áp dụng biên lợi nhuận cấu hình theo từng mẫu)
+            {totals?.is_bulk_pricing
+              ? '(Đã áp dụng biên sỉ đồng đều và làm tròn từng dòng)'
+              : '(Đã áp dụng biên lợi nhuận cấu hình theo từng mẫu)'}
           </p>
         </div>
 

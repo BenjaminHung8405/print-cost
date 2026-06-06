@@ -38,6 +38,9 @@ interface OrderItemCardProps {
   onOverrideTimeChange: (hours?: number, minutes?: number) => void;
   onOverridePriceChange: (price?: number) => void;
   onDelete: () => void;
+  isBelowSafety?: boolean;
+  appliedMargin?: number;
+  safetyMargin?: number;
 }
 
 export function OrderItemCard({
@@ -56,6 +59,9 @@ export function OrderItemCard({
   onOverrideTimeChange,
   onOverridePriceChange,
   onDelete,
+  isBelowSafety = false,
+  appliedMargin,
+  safetyMargin,
 }: OrderItemCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -154,6 +160,13 @@ export function OrderItemCard({
           </div>
         </div>
       </div>
+
+      {/* Warning Banner for safety margin */}
+      {isBelowSafety && appliedMargin !== undefined && safetyMargin !== undefined && (
+        <div className="text-amber-400 bg-amber-950/20 border border-amber-800/40 rounded px-3 py-2 text-xs flex items-center gap-1.5 mt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+          <span>⚠️ Cảnh báo: Biên sỉ ({(appliedMargin * 100).toFixed(0)}%) thấp hơn ngưỡng an toàn của nhựa ({(safetyMargin * 100).toFixed(0)}%).</span>
+        </div>
+      )}
 
       {/* Collapsible Override Section */}
       <Collapsible open={isExpanded} onOpenChange={setIsExpanded} className="mt-4">
