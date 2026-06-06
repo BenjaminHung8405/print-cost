@@ -129,3 +129,21 @@ export const createOrderSchema = z.object({
   customer_contact: z.string().trim().max(150).optional().nullable(),
   items: z.array(createOrderItemSchema).min(1, 'Đơn hàng phải có ít nhất 1 sản phẩm')
 });
+
+// Helper chặn đứng chuỗi trống hoặc khoảng trắng, không cho ép về 0
+const operationalNumberSchema = z.preprocess((val) => {
+  if (val === null || val === undefined) return undefined;
+  if (typeof val === 'string' && val.trim() === '') return undefined;
+  return Number(val);
+}, z.number({
+    required_error: 'Thông số này là bắt buộc, không được để trống',
+    invalid_type_error: 'Dữ liệu nhập vào phải là một con số hợp lệ'
+}).nonnegative('Giá trị chi phí vận hành không được phép âm'));
+
+export const updateOperationalConfigSchema = z.object({
+  machine_depreciation_per_hour: operationalNumberSchema,
+  labor_cost_per_minute: operationalNumberSchema
+});
+
+export type UpdateOperationalConfigInput = z.infer<typeof updateOperationalConfigSchema>;
+

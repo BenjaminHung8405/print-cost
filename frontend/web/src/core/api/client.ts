@@ -178,6 +178,17 @@ export async function getOperationalConfigs(): Promise<ApiOperationalConfigs> {
   return apiFetch<ApiOperationalConfigs>('/api/operational-configs');
 }
 
+/** PUT /api/operational-configs — update machine & labor cost configs */
+export async function updateOperationalConfigs(
+  payload: ApiOperationalConfigs
+): Promise<ApiOperationalConfigs> {
+  return apiFetch<ApiOperationalConfigs>('/api/operational-configs', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+
 /** GET /api/orders — fetch all orders with aggregated order items */
 export async function getOrders(): Promise<ApiOrder[]> {
   return apiFetch<ApiOrder[]>('/api/orders');
