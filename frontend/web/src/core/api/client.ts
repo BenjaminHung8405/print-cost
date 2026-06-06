@@ -54,6 +54,19 @@ export interface ApiFixedItem {
   quantity: number; // quantity attached to the product template
 }
 
+/**
+ * ApiFixedItemCatalog — dành cho trang quản lý catalog /configs/fixed-items.
+ * Tách biệt với ApiFixedItem (dùng trong product template context).
+ */
+export interface ApiFixedItemCatalog {
+  id: number;
+  name: string;
+  item_type: 'accessory' | 'packaging';
+  cost: number;
+}
+
+export type CreateFixedItemPayload = Omit<ApiFixedItemCatalog, 'id'>;
+
 export interface ApiProduct {
   id: number;
   name: string;
@@ -188,6 +201,43 @@ export async function updateOperationalConfigs(
   });
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fixed Items (Phụ kiện & Bao bì Catalog)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /api/fixed-items — fetch all fixed item catalog entries */
+export async function getFixedItems(): Promise<ApiFixedItemCatalog[]> {
+  return apiFetch<ApiFixedItemCatalog[]>('/api/fixed-items');
+}
+
+/** POST /api/fixed-items — create new fixed item */
+export async function createFixedItem(
+  payload: CreateFixedItemPayload
+): Promise<ApiFixedItemCatalog> {
+  return apiFetch<ApiFixedItemCatalog>('/api/fixed-items', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/** PUT /api/fixed-items/:id — update fixed item details */
+export async function updateFixedItem(
+  id: number,
+  payload: CreateFixedItemPayload
+): Promise<ApiFixedItemCatalog> {
+  return apiFetch<ApiFixedItemCatalog>(`/api/fixed-items/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+/** DELETE /api/fixed-items/:id — delete fixed item from catalog */
+export async function deleteFixedItem(id: number): Promise<void> {
+  return apiFetch<void>(`/api/fixed-items/${id}`, {
+    method: 'DELETE',
+  });
+}
 
 /** GET /api/orders — fetch all orders with aggregated order items */
 export async function getOrders(): Promise<ApiOrder[]> {
