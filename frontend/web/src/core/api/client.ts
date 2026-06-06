@@ -186,6 +186,38 @@ export async function getProducts(): Promise<ApiProduct[]> {
   return apiFetch<ApiProduct[]>('/api/products');
 }
 
+/** POST /api/products — create new product template */
+export async function createProduct(
+  payload: Omit<ApiProduct, 'id' | 'material_name' | 'fixed_items'> & {
+    fixed_items: { fixed_item_id: number; quantity: number }[];
+  }
+): Promise<ApiProduct> {
+  return apiFetch<ApiProduct>('/api/products', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/** PUT /api/products/:id — update existing product template */
+export async function updateProduct(
+  id: number,
+  payload: Omit<ApiProduct, 'id' | 'material_name' | 'fixed_items'> & {
+    fixed_items: { fixed_item_id: number; quantity: number }[];
+  }
+): Promise<ApiProduct> {
+  return apiFetch<ApiProduct>(`/api/products/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+/** DELETE /api/products/:id — delete product template */
+export async function deleteProduct(id: number): Promise<void> {
+  return apiFetch<void>(`/api/products/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 /** GET /api/operational-configs — fetch machine & labor cost configs */
 export async function getOperationalConfigs(): Promise<ApiOperationalConfigs> {
   return apiFetch<ApiOperationalConfigs>('/api/operational-configs');
@@ -335,4 +367,37 @@ export async function resetMachineMaintenance(): Promise<MachineResetResult> {
   return apiFetch<MachineResetResult>('/api/analytics/machines/reset', {
     method: 'POST',
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Invoice APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ApiInvoiceItem {
+  product_name: string;
+  material_name: string;
+  final_unit_price: number;
+  quantity: number;
+  total_item_price: number;
+}
+
+export interface ApiInvoice {
+  invoice_id: string;
+  order_id: number;
+  customer_name: string;
+  created_at: string;
+  status: string;
+  items: ApiInvoiceItem[];
+  total_amount: number;
+  payment_info: {
+    bank_id: string;
+    account_no: string;
+    account_name: string;
+    qr_code_url: string;
+  };
+}
+
+/** GET /api/invoices/:orderId — fetch invoice details and VietQR payment information */
+export async function getInvoice(orderId: number): Promise<ApiInvoice> {
+  return apiFetch<ApiInvoice>(`/api/invoices/${orderId}`);
 }

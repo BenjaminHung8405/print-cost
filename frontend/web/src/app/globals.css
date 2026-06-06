@@ -141,3 +141,59 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Print Layout Configuration (Chức năng 4.1)
+   ───────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Hide navigation, sidebar, main content wrapper, dialog close button, and action buttons */
+  aside, header, main, .no-print, button[aria-label="Close"], button[type="button"] {
+    display: none !important;
+  }
+
+  /* Reset basic page canvas */
+  body, html {
+    background-color: white !important;
+    background: white !important;
+    color: black !important;
+    font-size: 11pt;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  /* Remove dialog backdrop overlay block */
+  div[data-state="open"] {
+    background-color: transparent !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Flatten Radix Dialog container onto the print canvas */
+  div[role="dialog"] {
+    position: static !important;
+    transform: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+    color: black !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Force printable content container to fill layout naturally */
+  #printable-invoice-content {
+    display: block !important;
+    width: 100% !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+  }
+}
+

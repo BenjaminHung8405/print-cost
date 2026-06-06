@@ -33,6 +33,7 @@ import { OrderActionsDropdown } from './order-actions-dropdown'
 import { OrderDetailsDialog } from './order-details-dialog'
 import { OrdersTableSkeleton } from './orders-table-skeleton'
 import { OrdersEmptyState } from './orders-empty-state'
+import { InvoiceDialog } from './invoice-dialog'
 import {
   type OrderStatus,
   STATUS_CONFIG,
@@ -67,6 +68,8 @@ export function OrdersListPage() {
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all')
   const [selectedOrder, setSelectedOrder] = useState<ApiOrder | null>(null)
   const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false)
+  const [invoiceOrderId, setInvoiceOrderId] = useState<number | null>(null)
 
   // ── Ironclad Lock: cancellation confirmation dialog ───────────────────────
   const [pendingCancellation, setPendingCancellation] = useState<PendingCancellation | null>(null)
@@ -175,8 +178,8 @@ export function OrdersListPage() {
   }, [])
 
   const handleExportInvoice = useCallback((order: ApiOrder) => {
-    // Module 4 placeholder — invoice export
-    console.log('Export invoice for order:', formatOrderCode(order.id))
+    setInvoiceOrderId(order.id)
+    setIsInvoiceOpen(true)
   }, [])
 
   const handleCreateOrder = useCallback(() => {
@@ -469,6 +472,13 @@ export function OrdersListPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Invoice Dialog for exporting and printing bills */}
+        <InvoiceDialog
+          orderId={invoiceOrderId}
+          open={isInvoiceOpen}
+          onOpenChange={setIsInvoiceOpen}
+        />
       </div>
     </TooltipProvider>
   )

@@ -1,6 +1,6 @@
 'use client';
 
-import { BarChart3, Layers, Plus, Settings, ShoppingCart } from 'lucide-react';
+import { BarChart3, Layers, Package, Plus, Settings, ShoppingCart } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
@@ -18,6 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navItems: NavItem[] = [
     { label: 'Thống kê', href: '/analytics', icon: BarChart3 },
     { label: 'Đơn hàng', href: '/orders', icon: ShoppingCart },
+    { label: 'Sản phẩm', href: '/products', icon: Package },
     { label: 'Vật liệu', href: '/materials', icon: Layers },
     { label: 'Cấu hình', href: '/configs', icon: Settings },
   ];
@@ -140,8 +141,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation Items (Right Side) */}
-        <div className="flex flex-1 justify-around max-w-[42%]">
-          {navItems.slice(2, 4).map((item) => {
+        <div className="flex flex-1 justify-around max-w-[48%]">
+          {navItems.slice(2, 5).map((item) => {
             const isActive = pathname ? pathname.startsWith(item.href) : false;
             const Icon = item.icon;
 

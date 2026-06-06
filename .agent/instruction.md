@@ -331,6 +331,7 @@ When writing or modifying files:
 2. **Never Zero-out Margins**: Be careful with defaults. Default margins must reside between 0.00 and 1.00.
 3. **No Placeholders**: Never write dummy functions like `// TODO: calculate this later`. Implement all features completely.
 4. **Use Types**: Maintain full type safety across APIs and UI components. Match types directly with the database fields.
+5. **No Destructive Database Commands**: Never run backend integration tests (`npm run test` or `pnpm run test` in the backend directory) against the active development database, as the test suite uses `TRUNCATE` which will wipe all developer-entered data. Never run `docker-compose down -v` or `docker-compose down --volumes` unless explicitly instructed, to prevent deletion of the persistent database volume.
 
 ---
 

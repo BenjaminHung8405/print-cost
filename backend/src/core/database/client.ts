@@ -4,7 +4,23 @@ import knex from 'knex';
 // Load environment variables
 dotenv.config();
 
-const connectionString = process.env.DATABASE_URL || 'postgres://admin:admin@localhost:5432/printcost_db';
+let connectionString = process.env.DATABASE_URL;
+
+// If running in test mode (Vitest), rewrite DATABASE_URL to use the printcost_db_test database
+if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true') {
+  if (process.env.DATABASE_URL_TEST) {
+    connectionString = process.env.DATABASE_URL_TEST;
+  } else if (process.env.DATABASE_URL) {
+    // Replace the database name at the end of the URL with printcost_db_test
+    connectionString = process.env.DATABASE_URL.replace(/\/printcost_db(\?.*)?$/, '/printcost_db_test$1');
+  } else {
+    connectionString = 'postgres://admin:123456@localhost:5432/printcost_db_test';
+  }
+}
+
+if (!connectionString) {
+  connectionString = 'postgres://admin:admin@localhost:5432/printcost_db';
+}
 
 // Initialize Knex database instance
 export const db = knex({

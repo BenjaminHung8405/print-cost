@@ -11,7 +11,7 @@ set -e  # Exit on error
 DB_USER="${DB_USER:-admin}"
 DB_PASSWORD="${DB_PASSWORD:-123456}"
 DB_NAME="${DB_NAME:-printcost_db}"
-CONTAINER_NAME="printcost_db_test"
+CONTAINER_NAME="${CONTAINER_NAME:-printcost_db}"
 
 echo "🚀 PRINTCOST DATABASE V4 - VERIFICATION SCRIPT"
 echo "==============================================="
@@ -54,7 +54,7 @@ fi
 
 # Test 3: List all tables
 echo -e "\n${YELLOW}[TEST 3]${NC} Verifying all tables exist..."
-TABLES=$(docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';")
+TABLES=$(docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")
 if [ "$TABLES" -eq 7 ]; then
     pass "All 7 tables created successfully"
     docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -c "\dt" | tail -n +4
@@ -85,12 +85,12 @@ fi
 # Test 6: Check seed data - Operational Configs
 echo -e "\n${YELLOW}[TEST 6]${NC} Verifying seed data - Operational Configs..."
 CONFIGS_COUNT=$(docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -t -c "SELECT COUNT(*) FROM operational_configs;")
-if [ "$CONFIGS_COUNT" -eq 2 ]; then
-    pass "Operational configs seeded (2 records)"
+if [ "$CONFIGS_COUNT" -eq 3 ]; then
+    pass "Operational configs seeded (3 records)"
     docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d "$DB_NAME" -c \
         "SELECT key, value, description FROM operational_configs ORDER BY key;" | tail -n +3
 else
-    fail "Expected 2 operational configs but found $CONFIGS_COUNT"
+    fail "Expected 3 operational configs but found $CONFIGS_COUNT"
 fi
 
 # Test 7: Check seed data - Fixed Items
