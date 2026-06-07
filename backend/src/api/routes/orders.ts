@@ -234,8 +234,23 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
 
         // D. Calculate final unit price (apply price override with rounding to meet check constraints)
         let finalUnitPrice = calculatedResult.final_suggested_price;
+        let appliedMargin = calculatedResult.applied_margin;
+
         if (item.price_override !== undefined && item.price_override !== null) {
-          finalUnitPrice = roundTo100(Big(item.price_override));
+          const overridePriceRounded = roundTo100(Big(item.price_override));
+          if (overridePriceRounded !== calculatedResult.final_suggested_price) {
+            finalUnitPrice = overridePriceRounded;
+            const rawCogs = Big(calculatedResult.raw_unit_cogs);
+            const finalPrice = Big(finalUnitPrice);
+
+            if (finalPrice.gt(0) && rawCogs.gt(0)) {
+              // Công thức tính ngược chuẩn kế toán: Margin = 1 - (COGS / Giá bán)
+              const computedMargin = Big(1).minus(rawCogs.div(finalPrice)).round(4, Big.roundHalfUp);
+              appliedMargin = Math.max(0, Math.min(0.99, computedMargin.toNumber()));
+            } else {
+              appliedMargin = 0;
+            }
+          }
         }
 
         // E. Freeze item details into the 'order_items' ledger (using Unit-Level Snapshots for analytics parity)
@@ -254,7 +269,7 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
           snapshot_print_time_seconds: unitPrintSeconds,
           snapshot_labor_time_minutes: unitLaborMinutes,
           snapshot_fail_rate: product.material_fail_rate,
-          snapshot_margin: calculatedResult.applied_margin,
+          snapshot_margin: appliedMargin,
           snapshot_batch_quantity: product.batch_quantity,
           item_calculation_version: 1,
 

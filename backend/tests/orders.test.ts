@@ -240,6 +240,30 @@ describe('Orders API Integration Tests', () => {
     expect(Number(itemUp.final_unit_price)).toBe(25600);
   });
 
+  it('should accept custom price_override and calculate snapshot_margin correctly based on COGS and override price', async () => {
+    const res = await request(app)
+      .post('/api/orders')
+      .send({
+        customer_name: 'Custom Margin Verification',
+        items: [
+          {
+            product_id: testProductId,
+            quantity: 1,
+            price_override: 20000
+          }
+        ]
+      });
+
+    expect(res.status).toBe(201);
+    const orderId = res.body.data.order_id;
+    const [item] = await db('order_items').where({ order_id: orderId });
+    expect(Number(item.final_unit_price)).toBe(20000);
+    // COGS is 14958.9967. Price is 20000.
+    // Margin = 1 - 14958.9967 / 20000 = 0.25205
+    // PostgreSQL NUMERIC(5, 2) parses 0.25205 as 0.25 (25%)
+    expect(Number(item.snapshot_margin)).toBe(0.25);
+  });
+
   it('should handle product with 0% margin override correctly', async () => {
     const res = await request(app)
       .post('/api/orders')

@@ -168,6 +168,8 @@ export interface OrderItem {
   quantity: number;
   overridePrintTimeSeconds?: number;
   overridePrice?: number;
+  overrideMargin?: number | null;
+  useMarginOverride?: boolean;
 }
 
 export interface OrderTotals {
@@ -238,11 +240,15 @@ export function calculateOrderTotals(
     let finalUnitPrice: number;
     let appliedMargin: number;
 
-    if (item.overridePrice !== undefined && item.overridePrice !== null) {
+    if (item.useMarginOverride && item.overrideMargin !== undefined && item.overrideMargin !== null) {
+      appliedMargin = item.overrideMargin;
+      const rawSuggested = rawCOGS.div(new Big(1).minus(new Big(appliedMargin)));
+      finalUnitPrice = roundTo100(rawSuggested);
+    } else if (item.overridePrice !== undefined && item.overridePrice !== null) {
       // Individual item price override takes precedence
       finalUnitPrice = roundTo100(new Big(item.overridePrice));
       if (finalUnitPrice > 0 && rawCOGS.gt(0)) {
-        appliedMargin = new Big(1).minus(rawCOGS.div(new Big(finalUnitPrice))).toNumber();
+        appliedMargin = new Big(1).minus(rawCOGS.div(new Big(finalUnitPrice))).round(4).toNumber();
       } else {
         appliedMargin = 0;
       }

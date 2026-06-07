@@ -30,6 +30,7 @@ import { AlertTriangle, Loader2, Plus } from 'lucide-react';
 interface OrderItemState extends OrderItem {
   overrideHours?: number;
   overrideMinutes?: number;
+  marginInputString?: string;
 }
 
 function generateId(): string {
@@ -99,7 +100,9 @@ export function CreateOrderPage() {
       item.quantity !== 1 || 
       item.overrideHours !== undefined || 
       item.overrideMinutes !== undefined || 
-      item.overridePrice !== undefined
+      item.overridePrice !== undefined ||
+      item.overrideMargin !== undefined ||
+      item.useMarginOverride === true
     );
     return customerNameDirty || customerContactDirty || marginDirty || itemsDirty;
   }, [customerName, customerContact, marginInputString, items]);
@@ -164,6 +167,9 @@ export function CreateOrderPage() {
               overrideHours: undefined,
               overrideMinutes: undefined,
               overridePrice: undefined,
+              overrideMargin: undefined,
+              marginInputString: undefined,
+              useMarginOverride: false,
               overridePrintTimeSeconds: undefined,
             }
           : item
@@ -202,6 +208,33 @@ export function CreateOrderPage() {
   const updateItemOverridePrice = useCallback((itemId: string, price?: number) => {
     setItems(prev =>
       prev.map(item => (item.id === itemId ? { ...item, overridePrice: price } : item))
+    );
+  }, []);
+
+  const updateItemOverrideMargin = useCallback((itemId: string, margin: number | null, inputStr?: string) => {
+    setItems(prev =>
+      prev.map(item =>
+        item.id === itemId
+          ? {
+              ...item,
+              overrideMargin: margin,
+              marginInputString: inputStr,
+            }
+          : item
+      )
+    );
+  }, []);
+
+  const updateItemUseMarginOverride = useCallback((itemId: string, useMargin: boolean) => {
+    setItems(prev =>
+      prev.map(item =>
+        item.id === itemId
+          ? {
+              ...item,
+              useMarginOverride: useMargin,
+            }
+          : item
+      )
     );
   }, []);
 
@@ -337,6 +370,10 @@ export function CreateOrderPage() {
                     overrideHours={item.overrideHours}
                     overrideMinutes={item.overrideMinutes}
                     overridePrice={item.overridePrice}
+                    overrideMargin={item.overrideMargin}
+                    marginInputString={item.marginInputString}
+                    useMarginOverride={item.useMarginOverride}
+                    orderMarginOverride={orderMarginOverride}
                     showDelete={items.length > 1}
                     products={products}
                     getSuggestedPrice={getSuggestedPrice}
@@ -346,6 +383,12 @@ export function CreateOrderPage() {
                       updateItemOverrideTime(item.id, hours, minutes)
                     }
                     onOverridePriceChange={price => updateItemOverridePrice(item.id, price)}
+                    onOverrideMarginChange={(margin, inputStr) =>
+                      updateItemOverrideMargin(item.id, margin, inputStr)
+                    }
+                    onUseMarginOverrideChange={useMargin =>
+                      updateItemUseMarginOverride(item.id, useMargin)
+                    }
                     onDelete={() => removeItem(item.id)}
                     isBelowSafety={calculated?.is_below_safety}
                     appliedMargin={calculated?.applied_margin}

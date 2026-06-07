@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash2, ChevronDown, ChevronUp, Clock, CircleDollarSign, Minus, Plus } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronUp, Clock, CircleDollarSign, Minus, Plus, Lock, Unlock, Percent } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +28,10 @@ interface OrderItemCardProps {
   overrideHours?: number;
   overrideMinutes?: number;
   overridePrice?: number;
+  overrideMargin?: number | null;
+  marginInputString?: string;
+  useMarginOverride?: boolean;
+  orderMarginOverride?: number | null;
   showDelete: boolean;
   /** Live list of product templates loaded from API (no mock constants) */
   products: ApiProduct[];
@@ -37,10 +41,13 @@ interface OrderItemCardProps {
   onQuantityChange: (quantity: number) => void;
   onOverrideTimeChange: (hours?: number, minutes?: number) => void;
   onOverridePriceChange: (price?: number) => void;
+  onOverrideMarginChange: (margin: number | null, inputStr: string) => void;
+  onUseMarginOverrideChange: (useMargin: boolean) => void;
   onDelete: () => void;
   isBelowSafety?: boolean;
   appliedMargin?: number;
   safetyMargin?: number;
+  finalUnitPrice?: number;
 }
 
 export function OrderItemCard({
@@ -51,6 +58,10 @@ export function OrderItemCard({
   overrideHours,
   overrideMinutes,
   overridePrice,
+  overrideMargin,
+  marginInputString,
+  useMarginOverride = false,
+  orderMarginOverride,
   showDelete,
   products,
   getSuggestedPrice,
@@ -58,10 +69,13 @@ export function OrderItemCard({
   onQuantityChange,
   onOverrideTimeChange,
   onOverridePriceChange,
+  onOverrideMarginChange,
+  onUseMarginOverrideChange,
   onDelete,
   isBelowSafety = false,
   appliedMargin,
   safetyMargin,
+  finalUnitPrice,
 }: OrderItemCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -234,38 +248,142 @@ export function OrderItemCard({
               )}
             </div>
 
-            {/* Override Sale Price */}
+            {/* Mode selection (Price vs Margin) */}
             <div className="space-y-2">
-              <Label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CircleDollarSign className="h-4 w-4" />
-                Ghi đè giá bán
-              </Label>
-              <div className="relative">
-                {!overridePrice && (
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded">
-                    Tự động
-                  </span>
-                )}
-                <Input
-                  type="number"
-                  min={0}
-                  value={overridePrice ?? ''}
-                  onChange={e => {
-                    const price = e.target.value === '' ? undefined : parseInt(e.target.value);
-                    onOverridePriceChange(price);
-                  }}
-                  onFocus={(e) => {
-                    const target = e.target;
-                    setTimeout(() => target.select(), 50);
-                  }}
-                  placeholder={
-                    selectedProduct
-                      ? formatVND(getSuggestedPrice(selectedProduct)).replace(' đ', '')
-                      : '0'
-                  }
-                  className={`pr-10 h-10 bg-background border-border text-foreground font-mono ${!overridePrice ? 'pl-20' : ''}`}
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">đ</span>
+              <Label className="text-xs text-muted-foreground">Chế độ ghi đè sản phẩm</Label>
+              <div className="flex rounded-lg bg-muted/50 border border-border/40 p-1 gap-1 w-full max-w-[280px]">
+                <button
+                  type="button"
+                  onClick={() => onUseMarginOverrideChange(false)}
+                  className={`flex-grow py-1.5 text-xs font-medium rounded-md transition-all ${
+                    !useMarginOverride
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Ghi đè giá bán
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onUseMarginOverrideChange(true)}
+                  className={`flex-grow py-1.5 text-xs font-medium rounded-md transition-all ${
+                    useMarginOverride
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Ghi đè biên sỉ
+                </button>
+              </div>
+            </div>
+
+            {/* Inputs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Override Price Input */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CircleDollarSign className="h-4 w-4" />
+                  Giá bán ghi đè {!useMarginOverride ? <Unlock className="h-3.5 w-3.5 text-emerald-500" /> : <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                </Label>
+                <div className="relative">
+                  {!useMarginOverride ? (
+                    <>
+                      {!overridePrice && (
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded animate-fade-in">
+                          Tự động
+                        </span>
+                      )}
+                      <Input
+                        type="number"
+                        min={0}
+                        value={overridePrice ?? ''}
+                        onChange={e => {
+                          const price = e.target.value === '' ? undefined : parseInt(e.target.value);
+                          onOverridePriceChange(price);
+                        }}
+                        onFocus={(e) => {
+                          const target = e.target;
+                          setTimeout(() => target.select(), 50);
+                        }}
+                        placeholder={
+                          selectedProduct
+                            ? String(getSuggestedPrice(selectedProduct))
+                            : '0'
+                        }
+                        className={`pr-10 h-10 bg-background border-border text-foreground font-mono ${!overridePrice ? 'pl-20' : ''}`}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">đ</span>
+                    </>
+                  ) : (
+                    <Input
+                      type="text"
+                      readOnly
+                      disabled
+                      value={finalUnitPrice !== undefined ? formatVND(finalUnitPrice) : ''}
+                      className="h-10 bg-muted border-border/50 text-muted-foreground font-mono cursor-not-allowed"
+                    />
+                  )}
+                </div>
+              </div>
+
+              {/* Override Margin Input */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Percent className="h-4 w-4" />
+                  Biên lợi nhuận {useMarginOverride ? <Unlock className="h-3.5 w-3.5 text-emerald-500" /> : <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                </Label>
+                <div className="relative">
+                  {useMarginOverride ? (
+                    <>
+                      {!marginInputString && (
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded animate-fade-in">
+                          Mặc định
+                        </span>
+                      )}
+                      <Input
+                        type="text"
+                        value={marginInputString ?? ''}
+                        onChange={e => {
+                          const valStr = e.target.value;
+                          if (valStr !== '' && !/^\d*\.?\d*$/.test(valStr)) return;
+                          if (valStr === '') {
+                            onOverrideMarginChange(null, '');
+                          } else {
+                            const parsed = parseFloat(valStr);
+                            if (!isNaN(parsed) && parsed >= 0 && parsed < 100) {
+                              onOverrideMarginChange(parsed / 100, valStr);
+                            } else {
+                              onOverrideMarginChange(null, valStr);
+                            }
+                          }
+                        }}
+                        onFocus={(e) => {
+                          const target = e.target;
+                          setTimeout(() => target.select(), 50);
+                        }}
+                        placeholder={
+                          safetyMargin !== undefined
+                            ? (safetyMargin * 100).toFixed(0)
+                            : '0'
+                        }
+                        className={`pr-8 h-10 bg-background border-border text-foreground font-mono ${!marginInputString ? 'pl-[75px]' : ''}`}
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-mono">%</span>
+                    </>
+                  ) : (
+                    <Input
+                      type="text"
+                      readOnly
+                      disabled
+                      value={
+                        appliedMargin !== undefined 
+                          ? `${(appliedMargin * 100).toFixed(2)} %` 
+                          : ''
+                      }
+                      className="h-10 bg-muted border-border/50 text-muted-foreground font-mono cursor-not-allowed"
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </div>

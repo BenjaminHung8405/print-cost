@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { toPng } from 'html-to-image';
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { getInvoice, ApiInvoice } from '@/core/api/client';
-import { formatVND, formatDateTime, formatOrderCode } from '@/lib/orders';
-import { FileText, Download, Printer, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { ApiInvoice, getInvoice } from '@/core/api/client';
+import { formatDateTime, formatOrderCode, formatVND } from '@/lib/orders';
+import { toPng } from 'html-to-image';
+import { AlertCircle, Download, FileText, Printer, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface InvoiceDialogProps {
   orderId: number | null;
@@ -93,7 +93,7 @@ export function InvoiceDialog({
 
   const workshopName =
     process.env.NEXT_PUBLIC_WORKSHOP_NAME ||
-    'PrintCost Workshop - Dịch vụ in 3D chất lượng cao';
+    'BnC LAB - Dịch vụ in 3D chất lượng cao';
   const workshopContact =
     process.env.NEXT_PUBLIC_WORKSHOP_CONTACT || 'Long Xuyên, An Giang, Việt Nam';
 
