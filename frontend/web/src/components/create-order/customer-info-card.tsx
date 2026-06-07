@@ -39,6 +39,10 @@ export function CustomerInfoCard({
                 placeholder="Họ và tên khách"
                 value={customerName}
                 onChange={(e) => onNameChange(e.target.value)}
+                onFocus={(e) => {
+                  const target = e.target;
+                  setTimeout(() => target.select(), 50);
+                }}
                 className="pl-10 h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 required
               />
@@ -55,6 +59,10 @@ export function CustomerInfoCard({
                 placeholder="Link FB / Zalo / SĐT"
                 value={customerContact}
                 onChange={(e) => onContactChange(e.target.value)}
+                onFocus={(e) => {
+                  const target = e.target;
+                  setTimeout(() => target.select(), 50);
+                }}
                 className="pl-10 h-11 bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
             </div>

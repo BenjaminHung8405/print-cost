@@ -196,6 +196,85 @@ export function ProductForm({
     }
   }, [productData, isOpen, materials]);
 
+  const isDirty = React.useMemo(() => {
+    if (productData) {
+      const nameDiff = name !== productData.name;
+      const matDiff = selectedMaterialId !== productData.material_id;
+      
+      const parsedWeight = parseFloatDecimal(weightGram);
+      const weightDiff = isNaN(parsedWeight) ? false : parsedWeight !== productData.weight_gram;
+      
+      const parsedLabor = parseInt(laborTimeMinutes, 10);
+      const laborDiff = isNaN(parsedLabor) ? false : parsedLabor !== productData.labor_time_minutes;
+      
+      const timeDiff = printTimeSeconds !== productData.print_time_seconds;
+      
+      const batchQtyDiff = (productData.batch_quantity || 1) !== (parseInt(batchQuantity, 10) || 1);
+      
+      const hasMarginOverride = productData.margin_override !== null;
+      const marginOverrideDiff = isMarginOverridden !== hasMarginOverride || 
+        (isMarginOverridden && productData.margin_override !== null && marginOverridePercent !== Math.round(productData.margin_override * 100).toString());
+      
+      const initialFixedItems = productData.fixed_items.map(fi => ({
+        fixed_item_id: fi.id,
+        quantity: fi.quantity || 1
+      })).sort((a, b) => a.fixed_item_id - b.fixed_item_id);
+      
+      const currentFixedItems = selectedFixedItems.map(fi => ({
+        fixed_item_id: fi.fixed_item_id,
+        quantity: fi.quantity
+      })).sort((a, b) => a.fixed_item_id - b.fixed_item_id);
+      
+      const fixedItemsDiff = JSON.stringify(initialFixedItems) !== JSON.stringify(currentFixedItems);
+
+      return nameDiff || matDiff || weightDiff || laborDiff || timeDiff || batchQtyDiff || marginOverrideDiff || fixedItemsDiff;
+    } else {
+      const nameDiff = name !== "";
+      const matDiff = selectedMaterialId !== (materials[0]?.id || "");
+      const weightDiff = weightGram !== "";
+      const laborDiff = laborTimeMinutes !== "0";
+      const timeDiff = printTimeSeconds !== 0;
+      const batchQtyDiff = batchQuantity !== "1";
+      const marginOverrideDiff = isMarginOverridden || marginOverridePercent !== "";
+      const fixedItemsDiff = selectedFixedItems.length > 0;
+      
+      return nameDiff || matDiff || weightDiff || laborDiff || timeDiff || batchQtyDiff || marginOverrideDiff || fixedItemsDiff;
+    }
+  }, [
+    productData,
+    name,
+    selectedMaterialId,
+    weightGram,
+    laborTimeMinutes,
+    printTimeSeconds,
+    batchQuantity,
+    isMarginOverridden,
+    marginOverridePercent,
+    selectedFixedItems,
+    materials
+  ]);
+
+  useEffect(() => {
+    if (isOpen) {
+      (window as any).isFormDirty = isDirty;
+    } else {
+      (window as any).isFormDirty = false;
+    }
+    return () => {
+      (window as any).isFormDirty = false;
+    };
+  }, [isOpen, isDirty]);
+
+  const handleCloseAttempt = () => {
+    if (isDirty) {
+      const confirmDiscard = window.confirm(
+        "Bạn có các thay đổi chưa lưu. Bạn có chắc chắn muốn đóng và hủy bỏ các thay đổi?"
+      );
+      if (!confirmDiscard) return;
+    }
+    onClose();
+  };
+
   // Handle Desktop Time field changes
   const updatePrintTimeFromHMS = (h: string, m: string, s: string) => {
     const hh = parseInt(h, 10) || 0;
@@ -524,14 +603,19 @@ export function ProductForm({
   };
 
   return (
-    <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
       <DialogPrimitive.Portal>
         {/* Backdrop background shadow */}
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
 
         {/* Form Drawer box */}
         <DialogPrimitive.Content
-          onPointerDownOutside={(e) => e.preventDefault()} // Block close on outside clicks
+          onPointerDownOutside={(e) => {
+            if (isDirty) e.preventDefault(); // Block close on outside clicks if dirty
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isDirty) e.preventDefault(); // Block close on ESC key if dirty
+          }}
           className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-4xl border-l border-border bg-card text-card-foreground shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right h-screen flex flex-col focus:outline-none"
         >
           {/* Header */}
@@ -574,6 +658,10 @@ export function ProductForm({
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onFocus={(e) => {
+                      const target = e.target;
+                      setTimeout(() => target.select(), 50);
+                    }}
                     placeholder="Ví dụ: Keycap Dragon, Fishbone Mini"
                     disabled={isSubmitting}
                     autoComplete="off"
@@ -653,6 +741,10 @@ export function ProductForm({
                             min="2"
                             value={batchQuantity}
                             onChange={(e) => handleBatchQuantityChange(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.target;
+                              setTimeout(() => target.select(), 50);
+                            }}
                             placeholder="5"
                             className="text-right pr-8 font-mono text-xs"
                             disabled={isSubmitting}
@@ -679,6 +771,10 @@ export function ProductForm({
                             type="text"
                             value={batchWeightGram}
                             onChange={(e) => handleBatchWeightChange(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.target;
+                              setTimeout(() => target.select(), 50);
+                            }}
                             placeholder="0.00"
                             className="text-right pr-6 font-mono text-xs"
                             disabled={isSubmitting}
@@ -706,6 +802,10 @@ export function ProductForm({
                             min="0"
                             value={batchLaborTimeMinutes}
                             onChange={(e) => handleBatchLaborChange(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.target;
+                              setTimeout(() => target.select(), 50);
+                            }}
                             placeholder="0"
                             className="text-right pr-8 font-mono text-xs"
                             disabled={isSubmitting}
@@ -736,6 +836,10 @@ export function ProductForm({
                             value={batchMobileTimeStr}
                             onChange={(e) => setBatchMobileTimeStr(e.target.value)}
                             onBlur={handleBatchMobileTimeBlur}
+                            onFocus={(e) => {
+                              const target = e.target;
+                              setTimeout(() => target.select(), 50);
+                            }}
                             placeholder="Ví dụ: 013500"
                             className="font-mono text-center text-sm"
                             disabled={isSubmitting}
@@ -759,6 +863,10 @@ export function ProductForm({
                                   const val = e.target.value;
                                   setBatchHours(val);
                                   updateUnitPrintTimeFromBatchHMS(val, batchMinutes, batchSeconds);
+                                }}
+                                onFocus={(e) => {
+                                  const target = e.target;
+                                  setTimeout(() => target.select(), 50);
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -784,6 +892,10 @@ export function ProductForm({
                                   setBatchMinutes(val);
                                   updateUnitPrintTimeFromBatchHMS(batchHours, val, batchSeconds);
                                 }}
+                                onFocus={(e) => {
+                                  const target = e.target;
+                                  setTimeout(() => target.select(), 50);
+                                }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
                                 disabled={isSubmitting}
@@ -807,6 +919,10 @@ export function ProductForm({
                                   const val = e.target.value;
                                   setBatchSeconds(val);
                                   updateUnitPrintTimeFromBatchHMS(batchHours, batchMinutes, val);
+                                }}
+                                onFocus={(e) => {
+                                  const target = e.target;
+                                  setTimeout(() => target.select(), 50);
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -844,6 +960,10 @@ export function ProductForm({
                             type="text"
                             value={weightGram}
                             onChange={(e) => setWeightGram(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.target;
+                              setTimeout(() => target.select(), 50);
+                            }}
                             placeholder="0.00"
                             className="text-right pr-6 font-mono text-xs"
                             disabled={isSubmitting}
@@ -871,6 +991,10 @@ export function ProductForm({
                             min="0"
                             value={laborTimeMinutes}
                             onChange={(e) => setLaborTimeMinutes(e.target.value)}
+                            onFocus={(e) => {
+                              const target = e.target;
+                              setTimeout(() => target.select(), 50);
+                            }}
                             placeholder="0"
                             className="text-right pr-8 font-mono text-xs"
                             disabled={isSubmitting}
@@ -901,6 +1025,10 @@ export function ProductForm({
                             value={mobileTimeStr}
                             onChange={(e) => setMobileTimeStr(e.target.value)}
                             onBlur={handleMobileTimeBlur}
+                            onFocus={(e) => {
+                              const target = e.target;
+                              setTimeout(() => target.select(), 50);
+                            }}
                             placeholder="Ví dụ: 013500"
                             className="font-mono text-center text-sm"
                             disabled={isSubmitting}
@@ -924,6 +1052,10 @@ export function ProductForm({
                                   const val = e.target.value;
                                   setHours(val);
                                   updatePrintTimeFromHMS(val, minutes, secondsVal);
+                                }}
+                                onFocus={(e) => {
+                                  const target = e.target;
+                                  setTimeout(() => target.select(), 50);
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -949,6 +1081,10 @@ export function ProductForm({
                                   setMinutes(val);
                                   updatePrintTimeFromHMS(hours, val, secondsVal);
                                 }}
+                                onFocus={(e) => {
+                                  const target = e.target;
+                                  setTimeout(() => target.select(), 50);
+                                }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
                                 disabled={isSubmitting}
@@ -972,6 +1108,10 @@ export function ProductForm({
                                   const val = e.target.value;
                                   setSecondsVal(val);
                                   updatePrintTimeFromHMS(hours, minutes, val);
+                                }}
+                                onFocus={(e) => {
+                                  const target = e.target;
+                                  setTimeout(() => target.select(), 50);
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -1039,6 +1179,10 @@ export function ProductForm({
                           max="99"
                           value={marginOverridePercent}
                           onChange={(e) => setMarginOverridePercent(e.target.value)}
+                          onFocus={(e) => {
+                            const target = e.target;
+                            setTimeout(() => target.select(), 50);
+                          }}
                           placeholder="40"
                           className="text-right pr-8 font-mono h-9"
                           disabled={isSubmitting}
@@ -1209,7 +1353,7 @@ export function ProductForm({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={onClose}
+                  onClick={handleCloseAttempt}
                   className="bg-transparent border-border text-muted-foreground hover:bg-muted hover:text-foreground font-sans"
                   disabled={isSubmitting}
                 >

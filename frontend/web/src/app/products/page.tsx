@@ -327,6 +327,7 @@ export default function ProductsPage() {
       {/* 5. Product Form Drawer */}
       {operationalConfigs && (
         <ProductForm
+          key={selectedProduct?.id || "new-product"}
           isOpen={isDrawerOpen}
           productData={selectedProduct}
           materials={materials}

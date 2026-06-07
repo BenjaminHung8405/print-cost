@@ -23,6 +23,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     { label: 'Cấu hình', href: '/configs', icon: Settings },
   ];
 
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if ((window as any).isFormDirty) {
+        e.preventDefault();
+        e.returnValue = "Bạn có các thay đổi chưa lưu. Bạn có chắc chắn muốn rời đi?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if ((window as any).isFormDirty) {
+      const confirmDiscard = window.confirm(
+        "Bạn có các thay đổi chưa lưu. Bạn có chắc chắn muốn rời đi và hủy bỏ các thay đổi?"
+      );
+      if (!confirmDiscard) {
+        e.preventDefault();
+        return;
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col lg:flex-row">
       {/* =========================================================================
@@ -31,7 +57,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="hidden lg:flex flex-col w-64 bg-card border-r border-border sticky top-0 h-screen select-none z-30">
         {/* Brand Header */}
         <div className="h-16 px-6 border-b border-border flex items-center justify-between">
-          <Link href="/analytics" className="flex items-center gap-2">
+          <Link href="/analytics" onClick={(e) => handleNavClick(e, '/analytics')} className="flex items-center gap-2">
             <div className="relative w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-mono font-bold text-white shadow-lg shadow-emerald-900/40">
               P
               <div className="absolute inset-0.5 rounded border border-white/20 pointer-events-none" />
@@ -53,6 +79,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={(e) => handleNavClick(e, item.href)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-150 relative group ${
                   isActive
                     ? 'bg-primary/10 text-primary border border-primary/20'
@@ -73,6 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-border bg-muted/20">
           <Link
             href="/orders/create"
+            onClick={(e) => handleNavClick(e, '/orders/create')}
             className="flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold text-sm shadow-lg shadow-emerald-900/20 hover:shadow-emerald-900/40 transition-all duration-150 cursor-pointer"
           >
             <Plus className="w-5 h-5" />
@@ -85,7 +113,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           MOBILE TOP HEADER
           ========================================================================= */}
       <header className="lg:hidden h-14 bg-card border-b border-border sticky top-0 flex items-center justify-between px-4 z-30 select-none">
-        <Link href="/analytics" className="flex items-center gap-2">
+        <Link href="/analytics" onClick={(e) => handleNavClick(e, '/analytics')} className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-md bg-emerald-600 flex items-center justify-center font-mono font-bold text-white text-sm shadow-md">
             P
           </div>
@@ -117,6 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={(e) => handleNavClick(e, item.href)}
                 className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
                   isActive ? 'text-primary' : 'text-muted-foreground'
                 }`}
@@ -132,6 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="relative -top-5 flex flex-col items-center">
           <Link
             href="/orders/create"
+            onClick={(e) => handleNavClick(e, '/orders/create')}
             className="w-14 h-14 rounded-full bg-emerald-600 active:bg-emerald-700 text-white flex items-center justify-center shadow-lg shadow-emerald-900/60 hover:scale-105 active:scale-95 transition-all duration-150 border-4 border-background"
             aria-label="Tạo đơn hàng mới"
           >
@@ -150,6 +180,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={(e) => handleNavClick(e, item.href)}
                 className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-colors ${
                   isActive ? 'text-primary' : 'text-muted-foreground'
                 }`}

@@ -88,6 +88,43 @@ export function MaterialForm({
     setDefaultMargin(materialData ? Math.round(materialData.default_margin * 100) : 40);
   }, [materialData]);
 
+  const isDirty = React.useMemo(() => {
+    if (materialData) {
+      const nameDiff = name !== materialData.name;
+      const priceDiff = pricePerKg !== materialData.price_per_kg;
+      const failRateDiff = failRate !== materialData.fail_rate?.toString();
+      const marginDiff = defaultMargin !== Math.round(materialData.default_margin * 100);
+      return nameDiff || priceDiff || failRateDiff || marginDiff;
+    } else {
+      const nameDiff = name !== "";
+      const priceDiff = pricePerKg !== 0;
+      const failRateDiff = failRate !== "1.10";
+      const marginDiff = defaultMargin !== 40;
+      return nameDiff || priceDiff || failRateDiff || marginDiff;
+    }
+  }, [materialData, name, pricePerKg, failRate, defaultMargin]);
+
+  useEffect(() => {
+    if (isOpen) {
+      (window as any).isFormDirty = isDirty;
+    } else {
+      (window as any).isFormDirty = false;
+    }
+    return () => {
+      (window as any).isFormDirty = false;
+    };
+  }, [isOpen, isDirty]);
+
+  const handleCloseAttempt = () => {
+    if (isDirty) {
+      const confirmDiscard = window.confirm(
+        "Bạn có các thay đổi chưa lưu. Bạn có chắc chắn muốn đóng và hủy bỏ các thay đổi?"
+      );
+      if (!confirmDiscard) return;
+    }
+    onClose();
+  };
+
   // Pricing calculator using big.js (No intermediate rounding)
   useEffect(() => {
     try {
@@ -276,14 +313,19 @@ export function MaterialForm({
   const parsedFailRate = parseFloat(failRate);
 
   return (
-    <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => !open && handleCloseAttempt()}>
       <DialogPrimitive.Portal>
         {/* Darkened backdrop overlay */}
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         
         {/* Drawer slide-over content box */}
         <DialogPrimitive.Content
-          onPointerDownOutside={(e) => e.preventDefault()} // Block clicks outside from closing drawer
+          onPointerDownOutside={(e) => {
+            if (isDirty) e.preventDefault(); // Block clicks outside from closing drawer if dirty
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isDirty) e.preventDefault(); // Block close on ESC key if dirty
+          }}
           className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-4xl border-l border-border bg-card text-card-foreground shadow-2xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right h-screen flex flex-col focus:outline-none"
         >
           {/* Drawer Header */}
@@ -320,6 +362,10 @@ export function MaterialForm({
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    onFocus={(e) => {
+                      const target = e.target;
+                      setTimeout(() => target.select(), 50);
+                    }}
                     placeholder="Ví dụ: PLA Carbon, PETG Matte"
                     className=""
                     disabled={isSubmitting}
@@ -420,6 +466,10 @@ export function MaterialForm({
                           const val = parseInt(e.target.value, 10);
                           setDefaultMargin(isNaN(val) ? 0 : Math.min(Math.max(val, 0), 99));
                         }}
+                        onFocus={(e) => {
+                          const target = e.target;
+                          setTimeout(() => target.select(), 50);
+                        }}
                         className="text-center font-mono"
                         disabled={isSubmitting}
                         autoComplete="off"
@@ -434,7 +484,7 @@ export function MaterialForm({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={onClose}
+                  onClick={handleCloseAttempt}
                   className="bg-transparent border-border text-muted-foreground hover:bg-muted hover:text-foreground font-sans"
                   disabled={isSubmitting}
                 >
@@ -471,6 +521,10 @@ export function MaterialForm({
                         type="text"
                         value={simParams.weightGram}
                         onChange={(e) => setSimParams({ ...simParams, weightGram: e.target.value })}
+                        onFocus={(e) => {
+                          const target = e.target;
+                          setTimeout(() => target.select(), 50);
+                        }}
                         className="text-right pr-6 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
                         autoComplete="off"
                       />
@@ -487,6 +541,10 @@ export function MaterialForm({
                           value={simParams.printTimeHours}
                           onBlur={handleTimeBlur}
                           onChange={(e) => setSimParams({ ...simParams, printTimeHours: e.target.value })}
+                          onFocus={(e) => {
+                            const target = e.target;
+                            setTimeout(() => target.select(), 50);
+                          }}
                           className="text-right pr-5 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
                           autoComplete="off"
                         />
@@ -498,6 +556,10 @@ export function MaterialForm({
                           value={simParams.printTimeMinutes}
                           onBlur={handleTimeBlur}
                           onChange={(e) => setSimParams({ ...simParams, printTimeMinutes: e.target.value })}
+                          onFocus={(e) => {
+                            const target = e.target;
+                            setTimeout(() => target.select(), 50);
+                          }}
                           className="text-right pr-5 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
                           autoComplete="off"
                         />
@@ -513,6 +575,10 @@ export function MaterialForm({
                         type="text"
                         value={simParams.laborTimeMinutes}
                         onChange={(e) => setSimParams({ ...simParams, laborTimeMinutes: e.target.value })}
+                        onFocus={(e) => {
+                          const target = e.target;
+                          setTimeout(() => target.select(), 50);
+                        }}
                         className="text-right pr-6 font-mono text-xs focus-visible:ring-0 focus-visible:border-border"
                         autoComplete="off"
                       />

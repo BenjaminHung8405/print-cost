@@ -99,6 +99,10 @@ export function PricingReceipt({
               max={99}
               value={marginInputString}
               onChange={e => onMarginChange(e.target.value)}
+              onFocus={(e) => {
+                const target = e.target;
+                setTimeout(() => target.select(), 50);
+              }}
               placeholder="Mặc định lẻ (theo nhựa)"
               className="pr-8 h-9 bg-background border-border text-foreground font-mono text-center w-full focus:ring-1 focus:ring-ring"
             />

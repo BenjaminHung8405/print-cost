@@ -126,8 +126,6 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
     setConfirmDeleteId(null);
   };
 
-  const cancelEdit = () => setEditingRow(null);
-
   // ── Computed unit cost (Chế độ B — Tính từ gói/lô) ──────────────────────
   // Dùng Big.js để tránh floating-point drift.
   // Guard chặt NaN / division-by-zero khi người dùng đang gõ dở.
@@ -144,15 +142,53 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
     }
   }, [editingRow?.inputMode, editingRow?.totalPrice, editingRow?.lotQuantity, editingRow?.cost]);
 
+  const isDirty = useMemo(() => {
+    if (!editingRow) return false;
+    if (editingRow.id === null) {
+      // New row
+      return editingRow.name !== "" || 
+             editingRow.cost !== 0 || 
+             editingRow.totalPrice !== 0 || 
+             editingRow.lotQuantity !== 0;
+    } else {
+      // Editing existing row
+      const original = items.find(i => i.id === editingRow.id);
+      if (!original) return false;
+      const finalCost = editingRow.inputMode === "bulk" ? computedUnitCost : editingRow.cost;
+      return editingRow.name !== original.name || 
+             editingRow.item_type !== original.item_type || 
+             finalCost !== original.cost;
+    }
+  }, [editingRow, items, computedUnitCost]);
+
+  React.useEffect(() => {
+    (window as any).isFormDirty = isDirty;
+    return () => {
+      (window as any).isFormDirty = false;
+    };
+  }, [isDirty]);
+
+  const cancelEdit = () => {
+    if (isDirty) {
+      const confirmDiscard = window.confirm(
+        "Bạn có các thay đổi chưa lưu. Bạn có chắc chắn muốn hủy bỏ các thay đổi?"
+      );
+      if (!confirmDiscard) return;
+    }
+    setEditingRow(null);
+  };
+
   // ── Bulk-mode input handlers ──────────────────────────────────────────────
 
-  const handleTotalPriceFocus = () => {
+  const handleTotalPriceFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (!editingRow) return;
     setEditingRow({
       ...editingRow,
       isTotalPriceFocused: true,
       totalPriceInput: editingRow.totalPrice === 0 ? "" : editingRow.totalPrice.toString(),
     });
+    const target = e.target;
+    setTimeout(() => target.select(), 50);
   };
 
   const handleTotalPriceBlur = () => {
@@ -161,13 +197,15 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
     setEditingRow({ ...editingRow, isTotalPriceFocused: false, totalPrice: parsed, totalPriceInput: parsed.toString() });
   };
 
-  const handleLotQtyFocus = () => {
+  const handleLotQtyFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (!editingRow) return;
     setEditingRow({
       ...editingRow,
       isLotQtyFocused: true,
       lotQuantityInput: editingRow.lotQuantity === 0 ? "" : editingRow.lotQuantity.toString(),
     });
+    const target = e.target;
+    setTimeout(() => target.select(), 50);
   };
 
   const handleLotQtyBlur = () => {
@@ -176,13 +214,15 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
     setEditingRow({ ...editingRow, isLotQtyFocused: false, lotQuantity: parsed, lotQuantityInput: parsed.toString() });
   };
 
-  const handleCostFocus = () => {
+  const handleCostFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (!editingRow) return;
     setEditingRow({
       ...editingRow,
       isCostFocused: true,
       costInput: editingRow.cost === 0 ? "" : editingRow.cost.toString(),
     });
+    const target = e.target;
+    setTimeout(() => target.select(), 50);
   };
 
   const handleCostBlur = () => {
@@ -281,6 +321,10 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
                   autoFocus
                   value={editingRow.name}
                   onChange={(e) => setEditingRow({ ...editingRow, name: e.target.value })}
+                  onFocus={(e) => {
+                    const target = e.target;
+                    setTimeout(() => target.select(), 50);
+                  }}
                   className="h-8 text-sm font-sans flex-1 min-w-32"
                   placeholder="Tên vật tư..."
                 />
@@ -452,6 +496,10 @@ export function FixedItemsManager({ items, onDataChange }: Props) {
                 autoFocus
                 value={editingRow.name}
                 onChange={(e) => setEditingRow({ ...editingRow, name: e.target.value })}
+                onFocus={(e) => {
+                  const target = e.target;
+                  setTimeout(() => target.select(), 50);
+                }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") cancelEdit(); }}
                 className="h-8 text-sm font-sans flex-1 min-w-32"
                 placeholder="Tên vật tư mới..."

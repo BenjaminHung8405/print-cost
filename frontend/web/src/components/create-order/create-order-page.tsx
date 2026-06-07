@@ -89,6 +89,28 @@ export function CreateOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // ── Form Dirty State tracking ──────────────────────────────────────────────
+  const isDirty = useMemo(() => {
+    const customerNameDirty = customerName !== '';
+    const customerContactDirty = customerContact !== '';
+    const marginDirty = marginInputString !== '';
+    const itemsDirty = items.length > 1 || items.some(item => 
+      item.productId !== '' || 
+      item.quantity !== 1 || 
+      item.overrideHours !== undefined || 
+      item.overrideMinutes !== undefined || 
+      item.overridePrice !== undefined
+    );
+    return customerNameDirty || customerContactDirty || marginDirty || itemsDirty;
+  }, [customerName, customerContact, marginInputString, items]);
+
+  useEffect(() => {
+    (window as any).isFormDirty = isDirty;
+    return () => {
+      (window as any).isFormDirty = false;
+    };
+  }, [isDirty]);
+
   // ── Parallel bootstrap: load products, materials, configs in one go ────────
   useEffect(() => {
     let cancelled = false;
@@ -231,6 +253,9 @@ export function CreateOrderPage() {
             };
           }),
       });
+      // Clear form dirty flag before navigation to prevent route interception
+      (window as any).isFormDirty = false;
+
       // Navigate back to the order list on success
       router.push(`/orders`);
       // Brief success message before navigation

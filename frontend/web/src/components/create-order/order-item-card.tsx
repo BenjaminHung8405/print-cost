@@ -144,6 +144,10 @@ export function OrderItemCard({
                 const val = parseInt(e.target.value) || 1;
                 onQuantityChange(Math.max(1, val));
               }}
+              onFocus={(e) => {
+                const target = e.target;
+                setTimeout(() => target.select(), 50);
+              }}
               className="flex-1 text-center font-mono bg-transparent border-none focus:outline-none focus:ring-0 text-foreground min-w-[40px]"
               min={1}
             />
@@ -193,6 +197,10 @@ export function OrderItemCard({
                       const hours = e.target.value === '' ? undefined : parseInt(e.target.value);
                       onOverrideTimeChange(hours, overrideMinutes);
                     }}
+                    onFocus={(e) => {
+                      const target = e.target;
+                      setTimeout(() => target.select(), 50);
+                    }}
                     placeholder={selectedProduct ? String(getDefaultTime(selectedProduct).hours) : '0'}
                     className="pr-8 h-10 bg-background border-border text-foreground font-mono text-center"
                   />
@@ -208,6 +216,10 @@ export function OrderItemCard({
                     onChange={e => {
                       const minutes = e.target.value === '' ? undefined : parseInt(e.target.value);
                       onOverrideTimeChange(overrideHours, minutes);
+                    }}
+                    onFocus={(e) => {
+                      const target = e.target;
+                      setTimeout(() => target.select(), 50);
                     }}
                     placeholder={selectedProduct ? String(getDefaultTime(selectedProduct).minutes) : '0'}
                     className="pr-8 h-10 bg-background border-border text-foreground font-mono text-center"
@@ -241,6 +253,10 @@ export function OrderItemCard({
                   onChange={e => {
                     const price = e.target.value === '' ? undefined : parseInt(e.target.value);
                     onOverridePriceChange(price);
+                  }}
+                  onFocus={(e) => {
+                    const target = e.target;
+                    setTimeout(() => target.select(), 50);
                   }}
                   placeholder={
                     selectedProduct

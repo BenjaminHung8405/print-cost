@@ -210,6 +210,7 @@ export default function MaterialsPage() {
       {/* 3. Form Drawer Component */}
       {operationalConfigs && (
         <MaterialForm
+          key={selectedMaterial?.id || "new-material"}
           isOpen={isDrawerOpen}
           materialData={selectedMaterial}
           operationalConfigs={operationalConfigs}
