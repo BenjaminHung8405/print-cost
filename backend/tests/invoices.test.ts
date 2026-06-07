@@ -9,7 +9,21 @@ describe('Invoice API Integration Tests', () => {
   let testProductId: number;
   let testOrderId: number;
 
+  let originalEnv: Record<string, string | undefined>;
+
   beforeAll(async () => {
+    // Save original env values
+    originalEnv = {
+      BANK_ID: process.env.BANK_ID,
+      BANK_ACCOUNT_NO: process.env.BANK_ACCOUNT_NO,
+      BANK_ACCOUNT_NAME: process.env.BANK_ACCOUNT_NAME,
+    };
+
+    // Override env for test isolation
+    process.env.BANK_ID = 'MB';
+    process.env.BANK_ACCOUNT_NO = '0000123456789';
+    process.env.BANK_ACCOUNT_NAME = 'NGUYEN PHI HUNG';
+
     // 1. Clean up database records (using TRUNCATE to bypass locks)
     await db.raw('TRUNCATE TABLE order_items, orders, product_fixed_items, products, fixed_items, materials RESTART IDENTITY CASCADE');
     await db('operational_configs').del();
@@ -57,6 +71,11 @@ describe('Invoice API Integration Tests', () => {
   });
 
   afterAll(async () => {
+    // Restore original env values
+    process.env.BANK_ID = originalEnv.BANK_ID;
+    process.env.BANK_ACCOUNT_NO = originalEnv.BANK_ACCOUNT_NO;
+    process.env.BANK_ACCOUNT_NAME = originalEnv.BANK_ACCOUNT_NAME;
+
     // Clean up database records (using TRUNCATE to bypass locks)
     await db.raw('TRUNCATE TABLE order_items, orders, product_fixed_items, products, fixed_items, materials RESTART IDENTITY CASCADE');
     await db('operational_configs').del();

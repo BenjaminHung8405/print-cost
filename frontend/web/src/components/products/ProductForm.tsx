@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Big from "big.js";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,15 @@ export function ProductForm({
   const [laborTimeMinutes, setLaborTimeMinutes] = useState("0");
   const [batchQuantity, setBatchQuantity] = useState("1");
 
+  // Batch Helper States
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [batchWeightGram, setBatchWeightGram] = useState("");
+  const [batchHours, setBatchHours] = useState("0");
+  const [batchMinutes, setBatchMinutes] = useState("0");
+  const [batchSeconds, setBatchSeconds] = useState("0");
+  const [batchMobileTimeStr, setBatchMobileTimeStr] = useState("00:00:00");
+  const [batchLaborTimeMinutes, setBatchLaborTimeMinutes] = useState("0");
+
   // Margin Override state
   const [isMarginOverridden, setIsMarginOverridden] = useState(false);
   const [marginOverridePercent, setMarginOverridePercent] = useState("");
@@ -98,7 +108,9 @@ export function ProductForm({
       setSelectedMaterialId(productData.material_id);
       setWeightGram(productData.weight_gram.toString());
       setLaborTimeMinutes(productData.labor_time_minutes.toString());
-      setBatchQuantity((productData.batch_quantity || 1).toString());
+      
+      const qty = productData.batch_quantity || 1;
+      setBatchQuantity(qty.toString());
 
       const seconds = productData.print_time_seconds;
       setPrintTimeSeconds(seconds);
@@ -113,6 +125,36 @@ export function ProductForm({
           .toString()
           .padStart(2, "0")}:${s.toString().padStart(2, "0")}`
       );
+
+      if (qty > 1) {
+        setIsBatchMode(true);
+        // Hydration of Batch values: unit_value * batch_quantity (using Big to avoid JS floating issues)
+        const bWeight = new Big(productData.weight_gram).times(qty).round(2, Big.roundHalfUp).toNumber();
+        setBatchWeightGram(bWeight.toString());
+
+        const totalSecs = seconds * qty;
+        const bh = Math.floor(totalSecs / 3600);
+        const bm = Math.floor((totalSecs % 3600) / 60);
+        const bs = totalSecs % 60;
+        setBatchHours(bh.toString());
+        setBatchMinutes(bm.toString());
+        setBatchSeconds(bs.toString());
+        setBatchMobileTimeStr(
+          `${bh.toString().padStart(2, "0")}:${bm
+            .toString()
+            .padStart(2, "0")}:${bs.toString().padStart(2, "0")}`
+        );
+
+        setBatchLaborTimeMinutes((productData.labor_time_minutes * qty).toString());
+      } else {
+        setIsBatchMode(false);
+        setBatchWeightGram("");
+        setBatchHours("0");
+        setBatchMinutes("0");
+        setBatchSeconds("0");
+        setBatchMobileTimeStr("00:00:00");
+        setBatchLaborTimeMinutes("0");
+      }
 
       if (productData.margin_override !== null) {
         setIsMarginOverridden(true);
@@ -143,6 +185,14 @@ export function ProductForm({
       setIsMarginOverridden(false);
       setMarginOverridePercent("");
       setSelectedFixedItems([]);
+
+      setIsBatchMode(false);
+      setBatchWeightGram("");
+      setBatchHours("0");
+      setBatchMinutes("0");
+      setBatchSeconds("0");
+      setBatchMobileTimeStr("00:00:00");
+      setBatchLaborTimeMinutes("0");
     }
   }, [productData, isOpen, materials]);
 
@@ -193,6 +243,154 @@ export function ProductForm({
     setHours(hh.toString());
     setMinutes(mm.toString());
     setSecondsVal(ss.toString());
+  };
+
+  const handleModeToggle = (checked: boolean) => {
+    setIsBatchMode(checked);
+    if (checked) {
+      // Initialize batch fields from unit fields
+      const qty = parseInt(batchQuantity, 10) || 1;
+      const validQty = qty > 1 ? qty : 5; // default to 5 if current batch quantity is <= 1
+      if (qty <= 1) {
+        setBatchQuantity(validQty.toString());
+      }
+      const activeQty = qty <= 1 ? validQty : qty;
+
+      const w = parseFloatDecimal(weightGram) || 0;
+      const bWeight = new Big(w).times(activeQty).round(2, Big.roundHalfUp).toNumber();
+      setBatchWeightGram(bWeight.toString());
+
+      const totalSecs = printTimeSeconds * activeQty;
+      const bh = Math.floor(totalSecs / 3600);
+      const bm = Math.floor((totalSecs % 3600) / 60);
+      const bs = totalSecs % 60;
+      setBatchHours(bh.toString());
+      setBatchMinutes(bm.toString());
+      setBatchSeconds(bs.toString());
+      setBatchMobileTimeStr(
+        `${bh.toString().padStart(2, "0")}:${bm
+          .toString()
+          .padStart(2, "0")}:${bs.toString().padStart(2, "0")}`
+      );
+
+      const bLabor = (parseInt(laborTimeMinutes, 10) || 0) * activeQty;
+      setBatchLaborTimeMinutes(bLabor.toString());
+    } else {
+      setBatchQuantity("1");
+      setBatchWeightGram("");
+      setBatchHours("0");
+      setBatchMinutes("0");
+      setBatchSeconds("0");
+      setBatchMobileTimeStr("00:00:00");
+      setBatchLaborTimeMinutes("0");
+    }
+  };
+
+  const handleBatchWeightChange = (val: string) => {
+    setBatchWeightGram(val);
+    const qty = parseInt(batchQuantity, 10) || 1;
+    if (qty > 0) {
+      const w = parseFloatDecimal(val) || 0;
+      const unitW = new Big(w).div(qty).round(2, Big.roundHalfUp).toNumber();
+      setWeightGram(unitW.toString());
+    }
+  };
+
+  const handleBatchLaborChange = (val: string) => {
+    setBatchLaborTimeMinutes(val);
+    const qty = parseInt(batchQuantity, 10) || 1;
+    if (qty > 0) {
+      const laborM = parseInt(val, 10) || 0;
+      const unitLabor = Math.max(0, Math.round(laborM / qty));
+      setLaborTimeMinutes(unitLabor.toString());
+    }
+  };
+
+  const updateUnitPrintTimeFromBatchHMS = (hStr: string, mStr: string, sStr: string) => {
+    const qty = parseInt(batchQuantity, 10) || 1;
+    if (qty > 0) {
+      const bh = parseInt(hStr, 10) || 0;
+      const bm = parseInt(mStr, 10) || 0;
+      const bs = parseInt(sStr, 10) || 0;
+      const totalSecs = bh * 3600 + bm * 60 + bs;
+      const unitSecs = Math.max(1, Math.round(totalSecs / qty));
+      setPrintTimeSeconds(unitSecs);
+
+      // Sync unit HMS inputs
+      const uh = Math.floor(unitSecs / 3600);
+      const um = Math.floor((unitSecs % 3600) / 60);
+      const us = unitSecs % 60;
+      setHours(uh.toString());
+      setMinutes(um.toString());
+      setSecondsVal(us.toString());
+
+      const pad = (num: number) => num.toString().padStart(2, "0");
+      setMobileTimeStr(`${pad(uh)}:${pad(um)}:${pad(us)}`);
+    }
+  };
+
+  const handleBatchMobileTimeBlur = () => {
+    const clean = batchMobileTimeStr.replace(/[^0-9]/g, "");
+    const padded = clean.padStart(6, "0");
+    const hhStr = padded.slice(0, 2);
+    const mmStr = padded.slice(2, 4);
+    const ssStr = padded.slice(4, 6);
+
+    let hh = parseInt(hhStr, 10) || 0;
+    let mm = parseInt(mmStr, 10) || 0;
+    let ss = parseInt(ssStr, 10) || 0;
+
+    if (ss >= 60) {
+      mm += Math.floor(ss / 60);
+      ss = ss % 60;
+    }
+    if (mm >= 60) {
+      hh += Math.floor(mm / 60);
+      mm = mm % 60;
+    }
+
+    const formatted = `${hh.toString().padStart(2, "0")}:${mm
+      .toString()
+      .padStart(2, "0")}:${ss.toString().padStart(2, "0")}`;
+    setBatchMobileTimeStr(formatted);
+
+    setBatchHours(hh.toString());
+    setBatchMinutes(mm.toString());
+    setBatchSeconds(ss.toString());
+
+    updateUnitPrintTimeFromBatchHMS(hh.toString(), mm.toString(), ss.toString());
+  };
+
+  const handleBatchQuantityChange = (val: string) => {
+    setBatchQuantity(val);
+    const qty = parseInt(val, 10) || 1;
+    if (qty > 0 && isBatchMode) {
+      // Recalculate unit weight
+      const w = parseFloatDecimal(batchWeightGram) || 0;
+      const unitW = new Big(w).div(qty).round(2, Big.roundHalfUp).toNumber();
+      setWeightGram(unitW.toString());
+
+      // Recalculate unit print time
+      const bh = parseInt(batchHours, 10) || 0;
+      const bm = parseInt(batchMinutes, 10) || 0;
+      const bs = parseInt(batchSeconds, 10) || 0;
+      const totalSecs = bh * 3600 + bm * 60 + bs;
+      const unitSecs = Math.max(1, Math.round(totalSecs / qty));
+      setPrintTimeSeconds(unitSecs);
+
+      const uh = Math.floor(unitSecs / 3600);
+      const um = Math.floor((unitSecs % 3600) / 60);
+      const us = unitSecs % 60;
+      setHours(uh.toString());
+      setMinutes(um.toString());
+      setSecondsVal(us.toString());
+      setMobileTimeStr(`${uh.toString().padStart(2, "0")}:${um.toString().padStart(2, "0")}:${us.toString().padStart(2, "0")}`);
+
+      // Recalculate unit labor
+      const laborM = parseInt(batchLaborTimeMinutes, 10) || 0;
+      const unitLabor = Math.max(0, Math.round(laborM / qty));
+      setLaborTimeMinutes(unitLabor.toString());
+    }
   };
 
   // Find currently selected material
@@ -413,192 +611,382 @@ export function ProductForm({
                   </select>
                 </div>
 
-                {/* 3. Weight & Labor Time & Batch Quantity */}
-                <div className="grid grid-cols-3 gap-3">
-                  {/* Weight */}
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="product-weight"
-                      className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
-                    >
-                      Trọng lượng (g)
-                    </Label>
-                    <div className="relative flex items-center">
-                      <Input
-                        id="product-weight"
-                        type="text"
-                        value={weightGram}
-                        onChange={(e) => setWeightGram(e.target.value)}
-                        placeholder="0.00"
-                        className="text-right pr-6 font-mono text-xs"
-                        disabled={isSubmitting}
-                        autoComplete="off"
-                        required
-                      />
-                      <span className="absolute right-2.5 text-[10px] font-mono text-muted-foreground">
-                        g
-                      </span>
-                    </div>
+                {/* 3. Mode Toggle for Batch Helper */}
+                <div className="flex items-center justify-between bg-muted/10 border border-border p-3 rounded-lg gap-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Hỗ trợ nhập theo mẻ in</span>
+                    <span className="text-[10px] text-muted-foreground">Tự động chia nhỏ thông số mẻ in thành thông số đơn vị.</span>
                   </div>
-
-                  {/* Labor minutes */}
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="product-labor"
-                      className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
-                    >
-                      Công thợ (m)
-                    </Label>
-                    <div className="relative flex items-center">
-                      <Input
-                        id="product-labor"
-                        type="number"
-                        min="0"
-                        value={laborTimeMinutes}
-                        onChange={(e) => setLaborTimeMinutes(e.target.value)}
-                        placeholder="0"
-                        className="text-right pr-8 font-mono text-xs"
-                        disabled={isSubmitting}
-                        autoComplete="off"
-                        required
-                      />
-                      <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">
-                        m
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Batch Quantity */}
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="product-batch"
-                      className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
-                    >
-                      Cỡ lô (SL/mẻ)
-                    </Label>
-                    <div className="relative flex items-center">
-                      <Input
-                        id="product-batch"
-                        type="number"
-                        min="1"
-                        value={batchQuantity}
-                        onChange={(e) => setBatchQuantity(e.target.value)}
-                        placeholder="1"
-                        className="text-right pr-8 font-mono text-xs"
-                        disabled={isSubmitting}
-                        autoComplete="off"
-                        required
-                      />
-                      <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">
-                        pcs
-                      </span>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isBatchMode}
+                    onClick={() => handleModeToggle(!isBatchMode)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                      isBatchMode ? 'bg-primary' : 'bg-muted'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        isBatchMode ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
                 </div>
 
-                {/* 4. Adaptive TimeInput */}
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="print-time"
-                    className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
-                  >
-                    Thời gian in 3D (HH:MM:SS)
-                  </Label>
-
-                  {isMobile ? (
-                    /* Mobile flat input with auto Zero-padding format on blur */
-                    <div className="space-y-1">
-                      <Input
-                        id="print-time-mobile"
-                        type="text"
-                        value={mobileTimeStr}
-                        onChange={(e) => setMobileTimeStr(e.target.value)}
-                        onBlur={handleMobileTimeBlur}
-                        placeholder="Ví dụ: 013500"
-                        className="font-mono text-center text-sm"
-                        disabled={isSubmitting}
-                        autoComplete="off"
-                      />
-                      <span className="text-[10px] text-muted-foreground block leading-tight">
-                        Gõ chuỗi phẳng (Ví dụ: 4500 cho 45 phút, 13500 cho 1
-                        giờ 35 phút) để tự động căn chỉnh.
-                      </span>
-                    </div>
-                  ) : (
-                    /* Desktop adjacent HMS inputs for fast tab navigation */
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-1.5 bg-muted/20 border border-border rounded-lg p-1.5 flex-1 justify-center">
-                        {/* Hours */}
-                        <div className="flex flex-col items-center">
-                          <input
+                {isBatchMode ? (
+                  <>
+                    {/* Batch Mode Inputs */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* Batch Quantity */}
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor="product-batch"
+                          className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
+                        >
+                          Cỡ lô (SL/mẻ)
+                        </Label>
+                        <div className="relative flex items-center">
+                          <Input
+                            id="product-batch"
                             type="number"
-                            min="0"
-                            value={hours}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setHours(val);
-                              updatePrintTimeFromHMS(val, minutes, secondsVal);
-                            }}
-                            className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
-                            placeholder="00"
+                            min="2"
+                            value={batchQuantity}
+                            onChange={(e) => handleBatchQuantityChange(e.target.value)}
+                            placeholder="5"
+                            className="text-right pr-8 font-mono text-xs"
                             disabled={isSubmitting}
+                            autoComplete="off"
+                            required
                           />
-                          <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
-                            giờ
+                          <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">
+                            pcs
                           </span>
                         </div>
-                        <span className="text-muted-foreground/80 font-bold">
-                          :
-                        </span>
+                      </div>
 
-                        {/* Minutes */}
-                        <div className="flex flex-col items-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max="59"
-                            value={minutes}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setMinutes(val);
-                              updatePrintTimeFromHMS(hours, val, secondsVal);
-                            }}
-                            className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
-                            placeholder="00"
+                      {/* Total Weight */}
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor="product-batch-weight"
+                          className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
+                        >
+                          Tổng cân nặng mẻ (g)
+                        </Label>
+                        <div className="relative flex items-center">
+                          <Input
+                            id="product-batch-weight"
+                            type="text"
+                            value={batchWeightGram}
+                            onChange={(e) => handleBatchWeightChange(e.target.value)}
+                            placeholder="0.00"
+                            className="text-right pr-6 font-mono text-xs"
                             disabled={isSubmitting}
+                            autoComplete="off"
+                            required
                           />
-                          <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
-                            phút
+                          <span className="absolute right-2.5 text-[10px] font-mono text-muted-foreground">
+                            g
                           </span>
                         </div>
-                        <span className="text-muted-foreground/80 font-bold">
-                          :
-                        </span>
+                      </div>
 
-                        {/* Seconds */}
-                        <div className="flex flex-col items-center">
-                          <input
+                      {/* Total Labor */}
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor="product-batch-labor"
+                          className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
+                        >
+                          Tổng công thợ mẻ (m)
+                        </Label>
+                        <div className="relative flex items-center">
+                          <Input
+                            id="product-batch-labor"
                             type="number"
                             min="0"
-                            max="59"
-                            value={secondsVal}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setSecondsVal(val);
-                              updatePrintTimeFromHMS(hours, minutes, val);
-                            }}
-                            className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
-                            placeholder="00"
+                            value={batchLaborTimeMinutes}
+                            onChange={(e) => handleBatchLaborChange(e.target.value)}
+                            placeholder="0"
+                            className="text-right pr-8 font-mono text-xs"
                             disabled={isSubmitting}
+                            autoComplete="off"
+                            required
                           />
-                          <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
-                            giây
+                          <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">
+                            m
                           </span>
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
+
+                    {/* Total Print Time for Batch */}
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="print-time"
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      >
+                        Tổng thời gian in mẻ (HH:MM:SS)
+                      </Label>
+
+                      {isMobile ? (
+                        <div className="space-y-1">
+                          <Input
+                            id="print-time-batch-mobile"
+                            type="text"
+                            value={batchMobileTimeStr}
+                            onChange={(e) => setBatchMobileTimeStr(e.target.value)}
+                            onBlur={handleBatchMobileTimeBlur}
+                            placeholder="Ví dụ: 013500"
+                            className="font-mono text-center text-sm"
+                            disabled={isSubmitting}
+                            autoComplete="off"
+                          />
+                          <span className="text-[10px] text-muted-foreground block leading-tight">
+                            Gõ chuỗi phẳng (Ví dụ: 4500 cho 45 phút, 13500 cho 1
+                            giờ 35 phút) để tự động căn chỉnh.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 bg-muted/20 border border-border rounded-lg p-1.5 flex-1 justify-center">
+                            {/* Hours */}
+                            <div className="flex flex-col items-center">
+                              <input
+                                type="number"
+                                min="0"
+                                value={batchHours}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setBatchHours(val);
+                                  updateUnitPrintTimeFromBatchHMS(val, batchMinutes, batchSeconds);
+                                }}
+                                className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
+                                placeholder="00"
+                                disabled={isSubmitting}
+                              />
+                              <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
+                                giờ
+                              </span>
+                            </div>
+                            <span className="text-muted-foreground/80 font-bold">
+                              :
+                            </span>
+
+                            {/* Minutes */}
+                            <div className="flex flex-col items-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={batchMinutes}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setBatchMinutes(val);
+                                  updateUnitPrintTimeFromBatchHMS(batchHours, val, batchSeconds);
+                                }}
+                                className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
+                                placeholder="00"
+                                disabled={isSubmitting}
+                              />
+                              <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
+                                phút
+                              </span>
+                            </div>
+                            <span className="text-muted-foreground/80 font-bold">
+                              :
+                            </span>
+
+                            {/* Seconds */}
+                            <div className="flex flex-col items-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={batchSeconds}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setBatchSeconds(val);
+                                  updateUnitPrintTimeFromBatchHMS(batchHours, batchMinutes, val);
+                                }}
+                                className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
+                                placeholder="00"
+                                disabled={isSubmitting}
+                              />
+                              <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
+                                giây
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Warning Message */}
+                    <div className="text-[10px] text-amber-500 font-sans italic">
+                      * Phôi mẻ được quy đổi từ đơn vị gốc trong kho (Có thể chênh lệch nhỏ do làm tròn).
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Unit SKU Mode Inputs */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Weight */}
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor="product-weight"
+                          className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
+                        >
+                          Trọng lượng đơn vị (g)
+                        </Label>
+                        <div className="relative flex items-center">
+                          <Input
+                            id="product-weight"
+                            type="text"
+                            value={weightGram}
+                            onChange={(e) => setWeightGram(e.target.value)}
+                            placeholder="0.00"
+                            className="text-right pr-6 font-mono text-xs"
+                            disabled={isSubmitting}
+                            autoComplete="off"
+                            required
+                          />
+                          <span className="absolute right-2.5 text-[10px] font-mono text-muted-foreground">
+                            g
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Labor minutes */}
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor="product-labor"
+                          className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground whitespace-nowrap"
+                        >
+                          Công thợ đơn vị (m)
+                        </Label>
+                        <div className="relative flex items-center">
+                          <Input
+                            id="product-labor"
+                            type="number"
+                            min="0"
+                            value={laborTimeMinutes}
+                            onChange={(e) => setLaborTimeMinutes(e.target.value)}
+                            placeholder="0"
+                            className="text-right pr-8 font-mono text-xs"
+                            disabled={isSubmitting}
+                            autoComplete="off"
+                            required
+                          />
+                          <span className="absolute right-2 text-[10px] font-mono text-muted-foreground">
+                            m
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Print Time */}
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="print-time"
+                        className="text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                      >
+                        Thời gian in đơn vị (HH:MM:SS)
+                      </Label>
+
+                      {isMobile ? (
+                        <div className="space-y-1">
+                          <Input
+                            id="print-time-mobile"
+                            type="text"
+                            value={mobileTimeStr}
+                            onChange={(e) => setMobileTimeStr(e.target.value)}
+                            onBlur={handleMobileTimeBlur}
+                            placeholder="Ví dụ: 013500"
+                            className="font-mono text-center text-sm"
+                            disabled={isSubmitting}
+                            autoComplete="off"
+                          />
+                          <span className="text-[10px] text-muted-foreground block leading-tight">
+                            Gõ chuỗi phẳng (Ví dụ: 4500 cho 45 phút, 13500 cho 1
+                            giờ 35 phút) để tự động căn chỉnh.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 bg-muted/20 border border-border rounded-lg p-1.5 flex-1 justify-center">
+                            {/* Hours */}
+                            <div className="flex flex-col items-center">
+                              <input
+                                type="number"
+                                min="0"
+                                value={hours}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setHours(val);
+                                  updatePrintTimeFromHMS(val, minutes, secondsVal);
+                                }}
+                                className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
+                                placeholder="00"
+                                disabled={isSubmitting}
+                              />
+                              <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
+                                giờ
+                              </span>
+                            </div>
+                            <span className="text-muted-foreground/80 font-bold">
+                              :
+                            </span>
+
+                            {/* Minutes */}
+                            <div className="flex flex-col items-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={minutes}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setMinutes(val);
+                                  updatePrintTimeFromHMS(hours, val, secondsVal);
+                                }}
+                                className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
+                                placeholder="00"
+                                disabled={isSubmitting}
+                              />
+                              <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
+                                phút
+                              </span>
+                            </div>
+                            <span className="text-muted-foreground/80 font-bold">
+                              :
+                            </span>
+
+                            {/* Seconds */}
+                            <div className="flex flex-col items-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="59"
+                                value={secondsVal}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setSecondsVal(val);
+                                  updatePrintTimeFromHMS(hours, minutes, val);
+                                }}
+                                className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
+                                placeholder="00"
+                                disabled={isSubmitting}
+                              />
+                              <span className="text-[8px] uppercase tracking-wider text-muted-foreground/60 mt-0.5">
+                                giây
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
 
                 {/* 5. Dynamic Margin Override Switch */}
                 <div className="space-y-2.5 p-3.5 bg-muted/20 border border-border rounded-xl">

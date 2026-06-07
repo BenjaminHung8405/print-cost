@@ -52,13 +52,13 @@ describe('Orders API Integration Tests', () => {
     }).returning('*');
     testProductZeroMarginId = productZeroMargin.id;
 
-    // 5b. Seed a batch test product
+    // 5b. Seed a batch test product (using unit-level parameters for Commercial SKU)
     const [batchProduct] = await db('products').insert({
       name: 'TEST-BATCH-PRODUCT',
       material_id: testMaterialId,
-      weight_gram: 50.00,
-      print_time_seconds: 18000,
-      labor_time_minutes: 25,
+      weight_gram: 10.00, // 50 / 5 (unit weight)
+      print_time_seconds: 3600, // 18000 / 5 (unit print seconds)
+      labor_time_minutes: 5, // 25 / 5 (unit labor minutes)
       batch_quantity: 5,
       margin_override: null
     }).returning('*');

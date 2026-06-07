@@ -125,7 +125,7 @@ describe('Calculation Engine - calculateProductCosts', () => {
     expect(() => calculateProductCosts(input)).toThrow('Biên lợi nhuận không được phép bằng 1.00 (100%)');
   });
 
-  it('should calculate allocated unit costs correctly when batch_quantity is specified', () => {
+  it('should calculate unit costs directly without division even if batch_quantity is specified (Commercial SKU model)', () => {
     const input: CalculateRequestInput = {
       material: {
         price_per_kg: 250000,
@@ -136,10 +136,10 @@ describe('Calculation Engine - calculateProductCosts', () => {
         machine_depreciation_per_hour: 5000,
         labor_cost_per_minute: 600,
       },
-      weight_gram: 20,
-      print_time_seconds: 3600,
-      labor_time_minutes: 10,
-      batch_quantity: 5,
+      weight_gram: 4, // 20g / 5 = 4g unit-level input
+      print_time_seconds: 720, // 3600s / 5 = 720s unit-level input
+      labor_time_minutes: 2, // 10m / 5 = 2m unit-level input
+      batch_quantity: 5, // Metadata only, does not divide
       fixed_items: [
         { cost: 1000, quantity: 2 }
       ]
@@ -147,17 +147,17 @@ describe('Calculation Engine - calculateProductCosts', () => {
 
     const result = calculateProductCosts(input);
 
-    // Assert individual raw costs (each allocated by batch_quantity of 5)
-    // Material: (20g * 250đ/g * 1.10) / 5 = 5500 / 5 = 1100đ
+    // Assert individual raw costs (calculated directly from unit-level input parameters)
+    // Material: 4g * 250đ/g * 1.10 = 1100đ
     expect(result.raw_material_cost).toBe(1100);
 
-    // Machine: ((3600s / 3600s/h) * 5000đ/h) / 5 = 5000 / 5 = 1000đ
+    // Machine: (720s / 3600s/h) * 5000đ/h = 1000đ
     expect(result.raw_machine_cost).toBe(1000);
 
-    // Labor: (10m * 600đ/m) / 5 = 6000 / 5 = 1200đ
+    // Labor: 2m * 600đ/m = 1200đ
     expect(result.raw_labor_cost).toBe(1200);
 
-    // Fixed items (not allocated by batch): 1000 * 2 = 2000đ
+    // Fixed items: 1000 * 2 = 2000đ
     expect(result.raw_fixed_items_cost).toBe(2000);
 
     // COGS: 1100 + 1000 + 1200 + 2000 = 5300đ

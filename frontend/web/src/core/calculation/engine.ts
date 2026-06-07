@@ -43,19 +43,14 @@ export const calculateProductCosts = (input: CalculateInput) => {
   const deprPerHour = new Big(Math.max(0, input.machine_depreciation_per_hour));
   const laborMinutes = new Big(Math.max(0, input.labor_time_minutes));
   const laborCostPerMin = new Big(Math.max(0, input.labor_cost_per_minute));
-  const batchQty = new Big(Math.max(1, input.batch_quantity || 1));
+  // 1. Chi phí vật liệu đơn vị: Trọng lượng * (Giá 1kg / 1000) * Hệ số hỏng
+  const rawMaterialCost = weight.times(pricePerKg.div(1000)).times(failRate);
 
-  // 1. Chi phí vật liệu mẻ: Trọng lượng * (Giá 1kg / 1000) * Hệ số hỏng
-  const rawMaterialCostTotal = weight.times(pricePerKg.div(1000)).times(failRate);
-  const rawMaterialCost = rawMaterialCostTotal.div(batchQty);
+  // 2. Chi phí máy đơn vị: (Số giây in / 3600) * Khấu hao giờ
+  const rawMachineCost = printSeconds.div(3600).times(deprPerHour);
 
-  // 2. Chi phí máy mẻ: (Số giây in / 3600) * Khấu hao giờ
-  const rawMachineCostTotal = printSeconds.div(3600).times(deprPerHour);
-  const rawMachineCost = rawMachineCostTotal.div(batchQty);
-
-  // 3. Chi phí nhân công mẻ: Số phút * Giá mỗi phút
-  const rawLaborCostTotal = laborMinutes.times(laborCostPerMin);
-  const rawLaborCost = rawLaborCostTotal.div(batchQty);
+  // 3. Chi phí nhân công đơn vị: Số phút * Giá mỗi phút
+  const rawLaborCost = laborMinutes.times(laborCostPerMin);
 
   // 4. Chi phí phụ kiện đính kèm (Tính theo đơn vị sản phẩm nên không chia lô)
   const rawFixedItemsCost = input.fixed_items.reduce((sum, item) => {

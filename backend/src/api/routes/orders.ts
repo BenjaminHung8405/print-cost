@@ -239,9 +239,9 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
         }
 
         // E. Freeze item details into the 'order_items' ledger (using Unit-Level Snapshots for analytics parity)
-        const unitWeightGram = Number(Math.max(0.01, Number(Big(product.weight_gram).div(product.batch_quantity).toFixed(2))));
-        const unitPrintSeconds = Math.max(1, Math.round(product.print_time_seconds / product.batch_quantity));
-        const unitLaborMinutes = Math.round(product.labor_time_minutes / product.batch_quantity);
+        const unitWeightGram = Number(Math.max(0.01, Number(product.weight_gram)));
+        const unitPrintSeconds = Math.max(1, Math.round(product.print_time_seconds));
+        const unitLaborMinutes = Math.max(0, Math.round(product.labor_time_minutes));
 
         await trx('order_items').insert({
           order_id: newOrder.id,
