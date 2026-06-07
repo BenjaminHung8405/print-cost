@@ -865,8 +865,17 @@ export function ProductForm({
                                   updateUnitPrintTimeFromBatchHMS(val, batchMinutes, batchSeconds);
                                 }}
                                 onFocus={(e) => {
+                                  if (batchHours === "0") {
+                                    setBatchHours("");
+                                  }
                                   const target = e.target;
                                   setTimeout(() => target.select(), 50);
+                                }}
+                                onBlur={() => {
+                                  if (batchHours === "") {
+                                    setBatchHours("0");
+                                    updateUnitPrintTimeFromBatchHMS("0", batchMinutes, batchSeconds);
+                                  }
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -893,8 +902,17 @@ export function ProductForm({
                                   updateUnitPrintTimeFromBatchHMS(batchHours, val, batchSeconds);
                                 }}
                                 onFocus={(e) => {
+                                  if (batchMinutes === "0") {
+                                    setBatchMinutes("");
+                                  }
                                   const target = e.target;
                                   setTimeout(() => target.select(), 50);
+                                }}
+                                onBlur={() => {
+                                  if (batchMinutes === "") {
+                                    setBatchMinutes("0");
+                                    updateUnitPrintTimeFromBatchHMS(batchHours, "0", batchSeconds);
+                                  }
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -921,8 +939,17 @@ export function ProductForm({
                                   updateUnitPrintTimeFromBatchHMS(batchHours, batchMinutes, val);
                                 }}
                                 onFocus={(e) => {
+                                  if (batchSeconds === "0") {
+                                    setBatchSeconds("");
+                                  }
                                   const target = e.target;
                                   setTimeout(() => target.select(), 50);
+                                }}
+                                onBlur={() => {
+                                  if (batchSeconds === "") {
+                                    setBatchSeconds("0");
+                                    updateUnitPrintTimeFromBatchHMS(batchHours, batchMinutes, "0");
+                                  }
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -1054,8 +1081,17 @@ export function ProductForm({
                                   updatePrintTimeFromHMS(val, minutes, secondsVal);
                                 }}
                                 onFocus={(e) => {
+                                  if (hours === "0") {
+                                    setHours("");
+                                  }
                                   const target = e.target;
                                   setTimeout(() => target.select(), 50);
+                                }}
+                                onBlur={() => {
+                                  if (hours === "") {
+                                    setHours("0");
+                                    updatePrintTimeFromHMS("0", minutes, secondsVal);
+                                  }
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -1082,8 +1118,17 @@ export function ProductForm({
                                   updatePrintTimeFromHMS(hours, val, secondsVal);
                                 }}
                                 onFocus={(e) => {
+                                  if (minutes === "0") {
+                                    setMinutes("");
+                                  }
                                   const target = e.target;
                                   setTimeout(() => target.select(), 50);
+                                }}
+                                onBlur={() => {
+                                  if (minutes === "") {
+                                    setMinutes("0");
+                                    updatePrintTimeFromHMS(hours, "0", secondsVal);
+                                  }
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
@@ -1110,8 +1155,17 @@ export function ProductForm({
                                   updatePrintTimeFromHMS(hours, minutes, val);
                                 }}
                                 onFocus={(e) => {
+                                  if (secondsVal === "0") {
+                                    setSecondsVal("");
+                                  }
                                   const target = e.target;
                                   setTimeout(() => target.select(), 50);
+                                }}
+                                onBlur={() => {
+                                  if (secondsVal === "") {
+                                    setSecondsVal("0");
+                                    updatePrintTimeFromHMS(hours, minutes, "0");
+                                  }
                                 }}
                                 className="w-12 text-center font-mono text-sm bg-transparent outline-none border-b border-transparent focus:border-primary pr-0.5"
                                 placeholder="00"
