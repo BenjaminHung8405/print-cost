@@ -46,18 +46,23 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
           COALESCE(
             json_agg(
               json_build_object(
-                'id',                   oi.id,
-                'product_id',           oi.product_id,
-                'snapshot_product_name',oi.snapshot_product_name,
+                'id',                    oi.id,
+                'product_id',            oi.product_id,
+                'snapshot_product_name', oi.snapshot_product_name,
                 'snapshot_material_name',oi.snapshot_material_name,
-                'quantity',             oi.quantity,
-                'final_unit_price',     oi.final_unit_price::FLOAT,
-                'raw_material_cost',    oi.raw_material_cost::FLOAT,
-                'raw_machine_cost',     oi.raw_machine_cost::FLOAT,
-                'raw_labor_cost',       oi.raw_labor_cost::FLOAT,
-                'raw_fixed_items_cost', oi.raw_fixed_items_cost::FLOAT,
-                'raw_unit_cogs',        oi.raw_unit_cogs::FLOAT,
-                'total_item_price',     oi.total_item_price::FLOAT,
+                'snapshot_weight_gram',  oi.snapshot_weight_gram::FLOAT,
+                'snapshot_print_time_seconds', oi.snapshot_print_time_seconds,
+                'snapshot_labor_time_minutes', oi.snapshot_labor_time_minutes,
+                'snapshot_fail_rate',    oi.snapshot_fail_rate::FLOAT,
+                'snapshot_margin',       oi.snapshot_margin::FLOAT,
+                'quantity',              oi.quantity,
+                'final_unit_price',      oi.final_unit_price::FLOAT,
+                'raw_material_cost',     oi.raw_material_cost::FLOAT,
+                'raw_machine_cost',      oi.raw_machine_cost::FLOAT,
+                'raw_labor_cost',        oi.raw_labor_cost::FLOAT,
+                'raw_fixed_items_cost',  oi.raw_fixed_items_cost::FLOAT,
+                'raw_unit_cogs',         oi.raw_unit_cogs::FLOAT,
+                'total_item_price',      oi.total_item_price::FLOAT,
                 'snapshot_batch_quantity', oi.snapshot_batch_quantity
               )
             ) FILTER (WHERE oi.id IS NOT NULL), '[]'
