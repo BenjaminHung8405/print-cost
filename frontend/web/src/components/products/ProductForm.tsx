@@ -72,6 +72,23 @@ export function ProductForm({
   const [batchMobileTimeStr, setBatchMobileTimeStr] = useState("00:00:00");
   const [batchLaborTimeMinutes, setBatchLaborTimeMinutes] = useState("0");
 
+  // Cache States for toggling Batch Mode back and forth
+  const [lastUnitValues, setLastUnitValues] = useState<{
+    weight: string;
+    time: number;
+    labor: string;
+  } | null>(null);
+
+  const [lastBatchValues, setLastBatchValues] = useState<{
+    quantity: string;
+    weight: string;
+    hours: string;
+    minutes: string;
+    seconds: string;
+    mobileTimeStr: string;
+    labor: string;
+  } | null>(null);
+
   // Margin Override state
   const [isMarginOverridden, setIsMarginOverridden] = useState(false);
   const [marginOverridePercent, setMarginOverridePercent] = useState("");
@@ -103,6 +120,8 @@ export function ProductForm({
 
   // Sync state when productData changes
   useEffect(() => {
+    setLastUnitValues(null);
+    setLastBatchValues(null);
     if (productData) {
       setName(productData.name);
       setSelectedMaterialId(productData.material_id);
@@ -197,6 +216,7 @@ export function ProductForm({
   }, [productData, isOpen, materials]);
 
   const isDirty = React.useMemo(() => {
+    const currentBatchQty = isBatchMode ? (parseInt(batchQuantity, 10) || 1) : 1;
     if (productData) {
       const nameDiff = name !== productData.name;
       const matDiff = selectedMaterialId !== productData.material_id;
@@ -209,7 +229,7 @@ export function ProductForm({
       
       const timeDiff = printTimeSeconds !== productData.print_time_seconds;
       
-      const batchQtyDiff = (productData.batch_quantity || 1) !== (parseInt(batchQuantity, 10) || 1);
+      const batchQtyDiff = (productData.batch_quantity || 1) !== currentBatchQty;
       
       const hasMarginOverride = productData.margin_override !== null;
       const marginOverrideDiff = isMarginOverridden !== hasMarginOverride || 
@@ -234,7 +254,7 @@ export function ProductForm({
       const weightDiff = weightGram !== "";
       const laborDiff = laborTimeMinutes !== "0";
       const timeDiff = printTimeSeconds !== 0;
-      const batchQtyDiff = batchQuantity !== "1";
+      const batchQtyDiff = currentBatchQty !== 1;
       const marginOverrideDiff = isMarginOverridden || marginOverridePercent !== "";
       const fixedItemsDiff = selectedFixedItems.length > 0;
       
@@ -248,6 +268,7 @@ export function ProductForm({
     laborTimeMinutes,
     printTimeSeconds,
     batchQuantity,
+    isBatchMode,
     isMarginOverridden,
     marginOverridePercent,
     selectedFixedItems,
@@ -327,34 +348,60 @@ export function ProductForm({
   const handleModeToggle = (checked: boolean) => {
     setIsBatchMode(checked);
     if (checked) {
-      // Initialize batch fields from unit fields
-      const qty = parseInt(batchQuantity, 10) || 1;
-      const validQty = qty > 1 ? qty : 5; // default to 5 if current batch quantity is <= 1
-      if (qty <= 1) {
-        setBatchQuantity(validQty.toString());
+      // Toggling ON
+      // Check if unit values have not changed since we toggled OFF
+      const unitHasNotChanged = lastUnitValues &&
+        weightGram === lastUnitValues.weight &&
+        printTimeSeconds === lastUnitValues.time &&
+        laborTimeMinutes === lastUnitValues.labor;
+
+      if (unitHasNotChanged && lastBatchValues) {
+        // Restore previous batch values exactly
+        setBatchQuantity(lastBatchValues.quantity);
+        setBatchWeightGram(lastBatchValues.weight);
+        setBatchHours(lastBatchValues.hours);
+        setBatchMinutes(lastBatchValues.minutes);
+        setBatchSeconds(lastBatchValues.seconds);
+        setBatchMobileTimeStr(lastBatchValues.mobileTimeStr);
+        setBatchLaborTimeMinutes(lastBatchValues.labor);
+      } else {
+        // Initialize batch fields 1:1 from unit fields, default batch quantity to 1
+        setBatchQuantity("1");
+        setBatchWeightGram(weightGram);
+
+        const bh = Math.floor(printTimeSeconds / 3600);
+        const bm = Math.floor((printTimeSeconds % 3600) / 60);
+        const bs = printTimeSeconds % 60;
+        setBatchHours(bh.toString());
+        setBatchMinutes(bm.toString());
+        setBatchSeconds(bs.toString());
+        setBatchMobileTimeStr(
+          `${bh.toString().padStart(2, "0")}:${bm
+            .toString()
+            .padStart(2, "0")}:${bs.toString().padStart(2, "0")}`
+        );
+
+        setBatchLaborTimeMinutes(laborTimeMinutes);
       }
-      const activeQty = qty <= 1 ? validQty : qty;
-
-      const w = parseFloatDecimal(weightGram) || 0;
-      const bWeight = new Big(w).times(activeQty).round(2, Big.roundHalfUp).toNumber();
-      setBatchWeightGram(bWeight.toString());
-
-      const totalSecs = printTimeSeconds * activeQty;
-      const bh = Math.floor(totalSecs / 3600);
-      const bm = Math.floor((totalSecs % 3600) / 60);
-      const bs = totalSecs % 60;
-      setBatchHours(bh.toString());
-      setBatchMinutes(bm.toString());
-      setBatchSeconds(bs.toString());
-      setBatchMobileTimeStr(
-        `${bh.toString().padStart(2, "0")}:${bm
-          .toString()
-          .padStart(2, "0")}:${bs.toString().padStart(2, "0")}`
-      );
-
-      const bLabor = (parseInt(laborTimeMinutes, 10) || 0) * activeQty;
-      setBatchLaborTimeMinutes(bLabor.toString());
     } else {
+      // Toggling OFF
+      // Cache current unit and batch values before hiding/resetting
+      setLastUnitValues({
+        weight: weightGram,
+        time: printTimeSeconds,
+        labor: laborTimeMinutes,
+      });
+      setLastBatchValues({
+        quantity: batchQuantity,
+        weight: batchWeightGram,
+        hours: batchHours,
+        minutes: batchMinutes,
+        seconds: batchSeconds,
+        mobileTimeStr: batchMobileTimeStr,
+        labor: batchLaborTimeMinutes,
+      });
+
+      // Reset batch fields so they don't leak when submitting or calculating
       setBatchQuantity("1");
       setBatchWeightGram("");
       setBatchHours("0");
@@ -472,6 +519,14 @@ export function ProductForm({
     }
   };
 
+  const handleBatchQuantityBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    if (isNaN(val) || val < 1) {
+      setBatchQuantity("1");
+      handleBatchQuantityChange("1");
+    }
+  };
+
   // Find currently selected material
   const currentMaterial = materials.find((m) => m.id === selectedMaterialId);
 
@@ -506,7 +561,7 @@ export function ProductForm({
       ? (parseFloatDecimal(marginOverridePercent) || 0) / 100
       : null,
     default_margin: currentMaterial?.default_margin || 0.4,
-    batch_quantity: parseInt(batchQuantity, 10) || 1,
+    batch_quantity: isBatchMode ? (parseInt(batchQuantity, 10) || 1) : 1,
   };
 
   // Run Client-side calculations
@@ -558,9 +613,11 @@ export function ProductForm({
       return;
     }
     const batchQtyNum = parseInt(batchQuantity, 10);
-    if (isNaN(batchQtyNum) || batchQtyNum <= 0) {
-      onErrorMessage("Cỡ lô (Số lượng trong mẻ in) phải là số nguyên lớn hơn 0");
-      return;
+    if (isBatchMode) {
+      if (isNaN(batchQtyNum) || batchQtyNum <= 0) {
+        onErrorMessage("Cỡ lô (Số lượng trong mẻ in) phải là số nguyên lớn hơn 0");
+        return;
+      }
     }
     if (isMarginOverridden) {
       const overrideVal = parseFloatDecimal(marginOverridePercent);
@@ -578,7 +635,7 @@ export function ProductForm({
         weight_gram: weightNum,
         print_time_seconds: printTimeSeconds,
         labor_time_minutes: laborNum,
-        batch_quantity: batchQtyNum,
+        batch_quantity: isBatchMode ? batchQtyNum : 1,
         margin_override: isMarginOverridden
           ? parseFloatDecimal(marginOverridePercent) / 100
           : null,
@@ -738,9 +795,10 @@ export function ProductForm({
                           <Input
                             id="product-batch"
                             type="number"
-                            min="2"
+                            min="1"
                             value={batchQuantity}
                             onChange={(e) => handleBatchQuantityChange(e.target.value)}
+                            onBlur={handleBatchQuantityBlur}
                             onFocus={(e) => {
                               const target = e.target;
                               setTimeout(() => target.select(), 50);
